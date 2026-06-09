@@ -1,0 +1,26 @@
+# Node dependencies
+node_modules/
+
+# Expo / React Native / Frontend dependencies
+.expo/
+mobile/node_modules/
+frontend/node_modules/
+shared/node_modules/
+
+# Python Virtual Environment
+backend/venv/
+
+# Environment Variables
+backend/.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+web-build/
+
+# Logs and system files
+*.log
+.DS_Store
+Thumbs.db
