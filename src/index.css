@@ -1,0 +1,69 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap');
+
+:root {
+  --bg: #F5F2EC;
+  --surface: #FEFCF8;
+  --surface2: #EDE9E0;
+  --border: #D8D2C4;
+  --border2: #C8C0AE;
+  --text: #1C1A14;
+  --text2: #5A5446;
+  --text3: #8A8070;
+  --green: #2D6A4F;
+  --green-light: #D8F3DC;
+  --green-mid: #52B788;
+  --amber: #B5620A;
+  --amber-light: #FEF3E2;
+  --red: #9B2335;
+  --red-light: #FDE8EB;
+  --blue: #1A4D7A;
+  --blue-light: #E3EEF8;
+  --purple: #4A3080;
+  --purple-light: #EDE9F8;
+  --teal: #1A5C6B;
+  --teal-light: #E0F0F3;
+  --shadow: 0 1px 3px rgba(28,26,20,0.08), 0 4px 16px rgba(28,26,20,0.04);
+  --shadow-lg: 0 8px 32px rgba(28,26,20,0.12);
+  --radius: 10px;
+  --radius-lg: 16px;
+  --font-sans: 'DM Sans', sans-serif;
+  --font-serif: 'Fraunces', serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Scrollbar styles */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border2);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text3);
+}
