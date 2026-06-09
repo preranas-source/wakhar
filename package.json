@@ -1,0 +1,9 @@
+{
+  "name": "wakhar-wms-monorepo",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "mobile",
+    "shared"
+  ]
+}
