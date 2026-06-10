@@ -5,8 +5,9 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from datetime import datetime, date, timezone
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
+from dotenv import load_dotenv
 
 from app.models import (
     Base, User, UserRole, FPO, Warehouse, WarehouseType,
@@ -16,14 +17,25 @@ from app.models import (
     DispatchNote, DispatchStatus, DispatchTimelineEvent,
     PurchaseOrder, POStatus, PaymentStatus, ActivityLog, ActivityType,
 )
+from app.utils.auth import hash_password
 
-DATABASE_URL = "mysql+pymysql://wakhar:wakhar123@localhost/wakharwms"
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://wakhar:wakhar123@localhost/wakharwms")
 
 engine = create_engine(DATABASE_URL, echo=False)
 
 
 def seed():
     with Session(engine) as session:
+        # ──────────────────────────────────────────
+        # 0. Clean Existing Data
+        # ──────────────────────────────────────────
+        print("🧹 Cleaning existing database data...")
+        session.execute(text("SET FOREIGN_KEY_CHECKS = 0;"))
+        for table in reversed(Base.metadata.sorted_tables):
+            session.execute(table.delete())
+        session.execute(text("SET FOREIGN_KEY_CHECKS = 1;"))
+        session.commit()
         # ──────────────────────────────────────────
         # 1. FPOs
         # ──────────────────────────────────────────
@@ -52,29 +64,30 @@ def seed():
         # ──────────────────────────────────────────
         # 3. Users
         # ──────────────────────────────────────────
+        hashed_password = hash_password("123456")
         user_manager = User(
             email="rajesh@wakhar.in", phone="+919876500001",
-            password_hash="hashed_placeholder", full_name="Rajesh Bhosale",
+            password_hash=hashed_password, full_name="Rajesh Bhosale",
             role=UserRole.fpo_manager, initials="RB", fpo_id=fpo_wai.id,
         )
         user_admin = User(
             email="admin@wakhar.in", phone="+919876500000",
-            password_hash="hashed_placeholder", full_name="System Admin",
+            password_hash=hashed_password, full_name="System Admin",
             role=UserRole.admin, initials="SA",
         )
         user_staff = User(
             email="staff@wakhar.in", phone="+919876500002",
-            password_hash="hashed_placeholder", full_name="Anil Gaikwad",
+            password_hash=hashed_password, full_name="Anil Gaikwad",
             role=UserRole.fpo_staff, initials="AG", fpo_id=fpo_wai.id,
         )
         user_agg = User(
             email="agg@wakhar.in", phone="+919876500003",
-            password_hash="hashed_placeholder", full_name="Mahesh Kulkarni",
+            password_hash=hashed_password, full_name="Mahesh Kulkarni",
             role=UserRole.aggregator, initials="MK", fpo_id=fpo_aggregator.id,
         )
         user_market = User(
             email="buyer@raigadmart.in", phone="+919876500004",
-            password_hash="hashed_placeholder", full_name="Raigad Mart Buyer",
+            password_hash=hashed_password, full_name="Raigad Mart Buyer",
             role=UserRole.market_partner, initials="RM",
         )
         session.add_all([user_manager, user_admin, user_staff, user_agg, user_market])
