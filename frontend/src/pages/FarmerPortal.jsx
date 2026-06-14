@@ -1,433 +1,176 @@
 import { useState } from 'react';
+import { apiSim } from '@wakhar/shared';
 
 export default function FarmerPortal({ 
   intakes, 
   receipts, 
   farmersList = [], 
   onAmendReceipt, 
-  onAddActivity 
+  onAddActivity,
+  activeTab = 'farmer'
 }) {
-  // 1. Farmer search and selection
-  const [farmerSearchQuery, setFarmerSearchQuery] = useState('');
-  const [selectedFarmer, setSelectedFarmer] = useState(() => {
-    return farmersList.find(f => f.id === 'FM-00412') || farmersList[0] || {
-      id: 'FM-00412',
-      name: 'Suresh Patil',
-      phone: '+91 98765 43210',
-      aadhaar: '4532-8901-4821',
-      village: 'Wai'
-    };
+  // 1. Selected farmer (default to Suresh Patil for simulation)
+  const [selectedFarmer] = useState({
+    id: 'FM-00412',
+    name: 'Suresh Patil',
+    phone: '+91 98765 43210',
+    aadhaar: '4532-8901-4821',
+    village: 'Wai',
+    bankName: 'State Bank of India',
+    bankAcc: '340987127712',
+    bankIfsc: 'SBIN0004512',
+    bankBranch: 'Wai APMC Branch',
+    linkedFpo: 'Wai Farmer Producer Org',
+    fpoContact: 'Rajesh Bhosale (+91 98210 55660)',
+    fpoCoordinates: '17.9462° N, 73.8821° E'
   });
 
   // 2. Withdrawal form state
+  const [withdrawCommodity, setWithdrawCommodity] = useState('Rice');
   const [withdrawQuantity, setWithdrawQuantity] = useState('300');
   const [digitalToken, setDigitalToken] = useState('');
-  const [withdrawReason, setWithdrawReason] = useState('Sale to trader');
-  const [showWithdrawForm, setShowWithdrawForm] = useState(true);
+  const [withdrawReason, setWithdrawReason] = useState('Sale to local trader');
+  const [expectedOtp, setExpectedOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
 
-  // 3. Static & dynamic history list state (specific to Suresh Patil or fallback)
-  const [historyList, setHistoryList] = useState([
-    { id: 1, date: '30 May 2026', type: 'Deposit', commodity: 'Rice · Basmati', quantity: 900, grade: 'Grade A', warehouse: 'Wai FPO', wrToken: 'WR-2026-0347', status: 'Active', isRiceDeposit: true },
-    { id: 2, date: '12 Mar 2026', type: 'Withdrawal', commodity: 'Wheat · Lokwan', quantity: 1200, grade: 'Grade A', warehouse: 'Wai FPO', wrToken: 'WR-2026-0201', status: 'Closed' },
-    { id: 3, date: '5 Jan 2026', type: 'Deposit', commodity: 'Soybean', quantity: 1800, grade: 'Grade B', warehouse: 'Wai FPO', wrToken: 'WR-2026-0088', status: 'Closed' }
-  ]);
-
-  // Handle live farmer search
-  const handleSearchChange = (e) => {
-    const query = e.target.value;
-    setFarmerSearchQuery(query);
-    if (!query.trim()) return;
-
-    const matched = farmersList.find(f => 
-      f.id.toLowerCase().includes(query.toLowerCase()) || 
-      f.name.toLowerCase().includes(query.toLowerCase()) ||
-      f.aadhaar.includes(query) ||
-      f.phone.includes(query)
-    );
-    if (matched) {
-      setSelectedFarmer(matched);
-    }
+  const handleRequestOtp = () => {
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    setExpectedOtp(code);
+    setOtpSent(true);
+    apiSim.sendSMSNotification(selectedFarmer.phone, `WAKHAR: Your withdrawal authorization secure OTP token is ${code}. Do not share this PIN.`);
+    alert(`Secure OTP token has been dispatched to ${selectedFarmer.phone}! [SIMULATION CODE: ${code}]`);
   };
+  
+  // Withdrawal request logs
+  const [withdrawalRequests, setWithdrawalRequests] = useState([
+    { id: 'WRQ-2026-004', commodity: 'Wheat', quantity: 400, reason: 'Processing & milling', status: 'Approved', date: '04 Jun 2026' },
+    { id: 'WRQ-2026-001', commodity: 'Soybean', quantity: 600, reason: 'Sale to trader', status: 'Completed', date: '28 May 2026' }
+  ]);
 
   // Filter receipts and intakes for the active farmer
   const currentReceipts = receipts.filter(wr => wr.farmerId === selectedFarmer.id);
   const currentIntakes = intakes.filter(lot => lot.farmerId === selectedFarmer.id);
 
-  // Find active WR (quantity > 0)
-  const activeWR = currentReceipts.find(wr => wr.quantity > 0) || currentReceipts[0];
-
-  // Outstanding calculations
-  const totalDepositedKg = currentIntakes.reduce((sum, lot) => sum + Number(lot.quantity || 0), 0);
-  const lifetimeDeposited = selectedFarmer.id === 'FM-00412' 
-    ? '12,450 kg' 
-    : `${totalDepositedKg.toLocaleString()} kg`;
-
+  // Active WR count and balance
   const activeReceipts = currentReceipts.filter(wr => wr.quantity > 0);
   const outstandingBalance = activeReceipts.reduce((sum, wr) => sum + Number(wr.quantity || 0), 0);
-  const activeWRCount = activeReceipts.length;
-  const outstandingText = `${outstandingBalance.toLocaleString()} kg (${activeWRCount} active WR${activeWRCount !== 1 ? 's' : ''})`;
+  const totalDepositedKg = currentIntakes.reduce((sum, lot) => sum + Number(lot.quantity || 0), 0);
 
-  // Display details formatting
   const displayAadhaar = selectedFarmer.aadhaar 
     ? 'XXXX-XXXX-' + selectedFarmer.aadhaar.slice(-4) 
     : 'XXXX-XXXX-4821';
   
-  const displayBank = selectedFarmer.id === 'FM-00412' 
-    ? 'SBI ··· 7712' 
-    : 'SBI ··· ' + selectedFarmer.phone.slice(-4);
+  const displayBank = selectedFarmer.bankName + ' ···· ' + selectedFarmer.bankAcc.slice(-4);
 
-  // Remaining calculations
-  const currentQty = activeWR ? activeWR.quantity : 0;
-  const withdrawVal = Number(withdrawQuantity) || 0;
-  const remainingQty = Math.max(0, currentQty - withdrawVal);
-  const remainingText = `${remainingQty.toLocaleString()} kg (WR amended)`;
-
-  // History mapping (Suresh Patil uses custom data matching screenshots, others are fully dynamic)
-  const getHistoryList = () => {
-    if (selectedFarmer.id === 'FM-00412') {
-      return historyList.map(item => {
-        if (item.isRiceDeposit) {
-          const qty = activeWR ? activeWR.quantity : 0;
-          return {
-            ...item,
-            quantity: qty,
-            status: qty > 0 ? 'Active' : 'Closed'
-          };
-        }
-        return item;
-      });
-    } else {
-      // Dynamic rendering for other farmers
-      return currentReceipts.map((wr, idx) => ({
-        id: `dyn-${wr.id}-${idx}`,
-        date: wr.date || 'Today',
-        type: 'Deposit',
-        commodity: `${wr.commodity} · ${wr.variety || ''}`,
-        quantity: wr.quantity,
-        grade: wr.grade || 'Grade A',
-        warehouse: intakes.find(lot => lot.id === wr.lotId)?.warehouse || 'Wai FPO',
-        wrToken: wr.id,
-        status: wr.quantity > 0 ? 'Active' : 'Closed'
-      }));
-    }
-  };
-
-  // Trigger partial withdrawal submission
+  // Submit withdrawal request
   const handleWithdrawSubmit = (e) => {
     e.preventDefault();
-    if (!activeWR) {
-      alert('No active warehouse receipt found to withdraw from.');
+    
+    // Find active receipt of matching commodity
+    const matchingWR = activeReceipts.find(wr => wr.commodity.toLowerCase().includes(withdrawCommodity.toLowerCase()));
+    
+    if (!matchingWR) {
+      alert(`No active negotiable Warehouse Receipt found for commodity: ${withdrawCommodity}`);
       return;
     }
+    
+    const withdrawVal = Number(withdrawQuantity);
     if (withdrawVal <= 0) {
       alert('Withdrawal quantity must be greater than 0.');
       return;
     }
-    if (withdrawVal > activeWR.quantity) {
-      alert(`Withdrawal quantity exceeds active receipt quantity (${activeWR.quantity} kg).`);
+    
+    if (withdrawVal > matchingWR.quantity) {
+      alert(`Withdrawal quantity exceeds active receipt quantity (${matchingWR.quantity} kg).`);
       return;
     }
-    if (!digitalToken.trim()) {
-      alert('Security verification failed. Please enter the 6-digit OTP token sent to your device.');
+    
+    if (!expectedOtp) {
+      alert('Security Verification Required: Please request a digital token OTP code first.');
+      return;
+    }
+    
+    if (digitalToken !== expectedOtp) {
+      alert('Security Verification Failed: The OTP token entered is incorrect. Please request a new token.');
       return;
     }
 
-    // Trigger amendment callbacks
-    const newQty = activeWR.quantity - withdrawVal;
+    const newQty = matchingWR.quantity - withdrawVal;
     const newBags = Math.round(newQty / 50);
     const cropRates = { Rice: 62.5, Wheat: 22.8, Soybean: 47.2, Onion: 18.5, Groundnut: 68 };
-    const rate = cropRates[activeWR.commodity] || 20;
+    const rate = cropRates[matchingWR.commodity] || 20;
     const newVal = newQty * rate;
 
-    onAmendReceipt(activeWR.id, newQty, newBags, newVal);
+    // Call amendment callback
+    onAmendReceipt(matchingWR.id, newQty, newBags, newVal);
 
-    // Append to local history list
+    // Add to withdrawal log
     const logDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    setHistoryList(prev => [
-      {
-        id: Date.now(),
-        date: logDate,
-        type: 'Withdrawal',
-        commodity: `${activeWR.commodity} · ${activeWR.variety || 'Basmati'}`,
-        quantity: withdrawVal,
-        grade: activeWR.grade,
-        warehouse: activeWR.warehouse || 'Wai FPO',
-        wrToken: activeWR.id,
-        status: 'Closed'
-      },
-      ...prev
-    ]);
+    const newRequest = {
+      id: `WRQ-2026-0${100 + withdrawalRequests.length}`,
+      commodity: withdrawCommodity,
+      quantity: withdrawVal,
+      reason: withdrawReason,
+      status: 'Approved',
+      date: logDate
+    };
+
+    setWithdrawalRequests(prev => [newRequest, ...prev]);
 
     // Push dynamic activity log
     if (onAddActivity) {
       onAddActivity(
         'dispatch',
-        `Withdrawal recorded — Farmer <strong>${selectedFarmer.name}</strong> withdrew ${withdrawVal.toLocaleString()} kg crop from WR <strong>${activeWR.id}</strong>. Reason: ${withdrawReason}`
+        `Withdrawal request authorized — Farmer <strong>${selectedFarmer.name}</strong> withdrew ${withdrawVal.toLocaleString()} kg ${withdrawCommodity} from WR <strong>${matchingWR.id}</strong>. Reason: ${withdrawReason}`
       );
     }
 
-    alert(`Successfully authorized withdrawal of ${withdrawVal.toLocaleString()} kg. Active WR ${activeWR.id} has been amended to ${newQty.toLocaleString()} kg.`);
+    alert(`Successfully authorized withdrawal request of ${withdrawVal.toLocaleString()} kg. e-WR ${matchingWR.id} amended.`);
     setDigitalToken('');
-  };
-
-  const handleFullWithdrawal = () => {
-    if (!activeWR) return;
-    setWithdrawQuantity(activeWR.quantity.toString());
-    setShowWithdrawForm(true);
-    // Focus the token field
-    setTimeout(() => {
-      document.getElementById('token-input')?.focus();
-    }, 100);
+    setWithdrawQuantity('300');
   };
 
   return (
     <div className="page active" id="page-farmer">
-      {/* HEADER SECTION */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-        <div>
-          <div className="section-title" style={{ fontSize: '20px' }}>Farmer Portal</div>
-          <div className="section-sub" style={{ color: 'var(--text3)', fontSize: '12.5px', marginTop: '6px' }}>
-            Deposit history · Warehouse Receipts · Withdrawal requests · Balance
-          </div>
-        </div>
-        <div className="search-bar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input 
-            type="text" 
-            placeholder="Search farmer ID / Aadhaar"
-            value={farmerSearchQuery}
-            onChange={handleSearchChange}
-          />
-        </div>
-      </div>
-
-      {/* TWO-COLUMN GRID */}
-      <div className="farmer-layout">
-        
-        {/* LEFT COLUMN: Profile Card */}
-        <div className="farmer-profile-card">
-          <div className="farmer-profile-header">
-            <div className="farmer-profile-name">{selectedFarmer.name}</div>
-            <div className="farmer-profile-meta">{selectedFarmer.id} · Linked: {selectedFarmer.village || 'Wai'} FPO</div>
-          </div>
-          <div className="farmer-profile-body">
-            <div className="farmer-info-item">
-              <div className="farmer-info-label">Aadhaar</div>
-              <div className="farmer-info-value">{displayAadhaar}</div>
-            </div>
-            <div className="farmer-info-item">
-              <div className="farmer-info-label">Mobile</div>
-              <div className="farmer-info-value">{selectedFarmer.phone}</div>
-            </div>
-            <div className="farmer-info-item">
-              <div className="farmer-info-label">Bank Account</div>
-              <div className="farmer-info-value">{displayBank}</div>
-            </div>
-            <div className="farmer-info-item">
-              <div className="farmer-info-label">Total Deposited (Lifetime)</div>
-              <div className="farmer-info-value">{lifetimeDeposited}</div>
-            </div>
-            <div className="farmer-info-item">
-              <div className="farmer-info-label">Outstanding Balance</div>
-              <div className="farmer-info-value" style={{ fontWeight: '600', color: 'var(--blue)' }}>
-                {outstandingText}
-              </div>
+      {/* 1. MY DEPOSITS VIEW */}
+      {activeTab === 'farmer' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div>
+            <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text)' }}>My Deposits</div>
+            <div style={{ color: 'var(--text3)', fontSize: '12.5px', marginTop: '4px' }}>
+              Historical deposits log and active warehouse balance ledger
             </div>
           </div>
-          <div className="farmer-profile-footer">
-            <button 
-              className="btn btn-primary" 
-              style={{ width: '100%', justifyContent: 'center' }}
-              onClick={() => {
-                setWithdrawQuantity('300');
-                setShowWithdrawForm(true);
-              }}
-            >
-              + New Withdrawal Request
-            </button>
-            <button 
-              className="btn btn-outline" 
-              style={{ width: '100%', justifyContent: 'center', background: '#fff' }}
-              onClick={() => alert(`Warehouse receipt data pushed to ${selectedFarmer.phone} via WhatsApp notification link successfully.`)}
-            >
-              Send WR via WhatsApp/SMS
-            </button>
+
+          {/* Metric Row */}
+          <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            <div className="stat-card">
+              <div className="stat-label">Total Deposits (Lifetime)</div>
+              <div className="stat-value">{totalDepositedKg.toLocaleString()} kg</div>
+              <div className="stat-sub">Across all crop cycles</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">Current Outstanding Balance</div>
+              <div className="stat-value" style={{ color: 'var(--blue)' }}>{outstandingBalance.toLocaleString()} kg</div>
+              <div className="stat-sub">{activeReceipts.length} active warehouse receipts</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">Linked FPO Warehouse</div>
+              <div className="stat-value" style={{ fontSize: '18px', padding: '4px 0' }}>{selectedFarmer.linkedFpo}</div>
+              <div className="stat-sub">GPS: {selectedFarmer.fpoCoordinates}</div>
+            </div>
           </div>
-        </div>
 
-        {/* RIGHT COLUMN: Active WR & Withdrawal Panel */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
-          {/* Active WR Receipt Fields */}
-          {activeWR ? (
-            <div className="card">
-              <div className="card-header">
-                <div className="section-title">Active Warehouse Receipt</div>
-                <span className="badge badge-green">Valid</span>
-              </div>
-              <div className="card-body">
-                <div className="wr-details-grid">
-                  <div className="wr-grid-item">
-                    <div className="wr-grid-label">WR ID</div>
-                    <div className="wr-grid-value">
-                      <span className="wr-grid-value-link" onClick={() => alert(`Showing electronic metadata verification summary for negotiable e-WR: ${activeWR.id}`)}>
-                        {activeWR.id}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="wr-grid-item">
-                    <div className="wr-grid-label">Commodity / Grade</div>
-                    <div className="wr-grid-value">{activeWR.commodity} - {activeWR.grade}</div>
-                  </div>
-                  <div className="wr-grid-item">
-                    <div className="wr-grid-label">Quantity</div>
-                    <div className="wr-grid-value" style={{ fontWeight: '600' }}>
-                      {activeWR.quantity.toLocaleString()} kg
-                    </div>
-                  </div>
-                  <div className="wr-grid-item">
-                    <div className="wr-grid-label">Issue Date</div>
-                    <div className="wr-grid-value">{activeWR.date || '30 May 2026'}</div>
-                  </div>
-                </div>
-
-                <div className="wr-details-grid" style={{ marginTop: '14px', borderTop: '1px solid var(--surface2)', paddingTop: '14px' }}>
-                  <div className="wr-grid-item">
-                    <div className="wr-grid-label">Validity</div>
-                    <div className="wr-grid-value">30 Nov 2026</div>
-                  </div>
-                  <div className="wr-grid-item">
-                    <div className="wr-grid-label">Warehouse</div>
-                    <div className="wr-grid-value">Wai FPO · Zone A-3</div>
-                  </div>
-                  <div className="wr-grid-item">
-                    <div className="wr-grid-label">Collateral Status</div>
-                    <div className="wr-grid-value">
-                      <span 
-                        className="status-dot-text"
-                        style={{
-                          '--blue': activeWR.collateralStatus === 'None' ? 'var(--blue)' :
-                                   activeWR.collateralStatus === 'Applied' ? 'var(--amber)' : 'var(--green)'
-                        }}
-                      >
-                        {activeWR.collateralStatus === 'None' ? 'Available for loan' :
-                         activeWR.collateralStatus === 'Applied' ? 'Under Review' : `Disbursed (₹${activeWR.loanAmount.toLocaleString()})`}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="wr-grid-item">
-                    <div className="wr-grid-label">eNAM Status</div>
-                    <div className="wr-grid-value">
-                      <span className="status-dot-text submitted">Submitted</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="form-footer" style={{ borderTop: '1px solid var(--border)', justifyContent: 'flex-start' }}>
-                <button 
-                  className="btn btn-outline" 
-                  onClick={() => alert(`Simulating PDF generation for receipt ${activeWR.id}... Document download started.`)}
-                >
-                  Download WR PDF
-                </button>
-                <button 
-                  className="btn btn-outline"
-                  onClick={() => setShowWithdrawForm(true)}
-                >
-                  Partial Withdrawal
-                </button>
-                <button 
-                  className="btn btn-primary"
-                  onClick={handleFullWithdrawal}
-                >
-                  Full Withdrawal
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="card" style={{ padding: '32px', textAlign: 'center', color: 'var(--text3)' }}>
-              No active negotiable Warehouse Receipts on record for this farmer ID.
-            </div>
-          )}
-
-          {/* PARTIAL WITHDRAWAL PANEL */}
-          {activeWR && showWithdrawForm && (
-            <form onSubmit={handleWithdrawSubmit} className="withdrawal-card">
-              <div className="withdrawal-title">
-                Partial Withdrawal — {activeWR.id}
-              </div>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                <div className="form-group">
-                  <label className="form-label">Withdrawal Quantity (kg)</label>
-                  <input 
-                    type="number"
-                    className="form-input"
-                    value={withdrawQuantity}
-                    onChange={(e) => setWithdrawQuantity(e.target.value)}
-                    max={activeWR.quantity}
-                    min="1"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Digital Token (from SMS/App)</label>
-                  <input 
-                    type="text"
-                    id="token-input"
-                    className="form-input"
-                    placeholder="6-digit OTP token"
-                    value={digitalToken}
-                    onChange={(e) => setDigitalToken(e.target.value)}
-                    maxLength="6"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                <div className="form-group">
-                  <label className="form-label">Remaining After Withdrawal</label>
-                  <input 
-                    type="text"
-                    className="form-input"
-                    value={remainingText}
-                    readOnly
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Withdrawal Reason</label>
-                  <select 
-                    className="form-select"
-                    value={withdrawReason}
-                    onChange={(e) => setWithdrawReason(e.target.value)}
-                  >
-                    <option value="Sale to trader">Sale to trader</option>
-                    <option value="Processing & milling">Processing & milling</option>
-                    <option value="Self consumption">Self consumption</option>
-                    <option value="Quality upgrade (re-drying)">Quality upgrade (re-drying)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
-                <button type="submit" className="btn btn-blue">
-                  Authorize Partial Withdrawal & Amend WR
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* DEPOSIT & WITHDRAWAL HISTORY */}
+          {/* Deposits Table */}
           <div className="card">
-            <div className="card-header">
-              <div className="section-title">Deposit & Withdrawal History</div>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="section-title">Deposited Commodity History</div>
               <button 
                 className="btn btn-outline" 
-                style={{ padding: '6px 12px', fontSize: '12px' }}
-                onClick={() => alert('Exporting deposit and withdrawal histories log as CSV... Download started.')}
+                style={{ padding: '6px 12px', fontSize: '12px', background: '#fff' }}
+                onClick={() => alert('Exporting deposit ledger as CSV...')}
               >
-                Export
+                Export CSV
               </button>
             </div>
             <div className="table-responsive">
@@ -435,45 +178,285 @@ export default function FarmerPortal({
                 <thead>
                   <tr>
                     <th>Date</th>
-                    <th>Type</th>
-                    <th>Commodity</th>
+                    <th>Lot ID</th>
+                    <th>Commodity / Variety</th>
                     <th>Quantity</th>
                     <th>Grade</th>
-                    <th>Warehouse</th>
-                    <th>WR / Token</th>
+                    <th>Warehouse Location</th>
+                    <th>Moisture %</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {getHistoryList().map((item, idx) => (
-                    <tr key={item.id || idx}>
-                      <td>{item.date}</td>
-                      <td>
-                        <span className={`badge ${item.type === 'Deposit' ? 'badge-green' : 'badge-amber'}`}>
-                          {item.type}
-                        </span>
-                      </td>
-                      <td>{item.commodity}</td>
-                      <td style={{ fontWeight: '500' }}>{item.quantity.toLocaleString()} kg</td>
-                      <td>{item.grade}</td>
-                      <td>{item.warehouse}</td>
-                      <td style={{ fontWeight: '600' }}>{item.wrToken}</td>
-                      <td>
-                        <span className={`badge ${item.status === 'Active' ? 'badge-blue' : 'badge-gray'}`}>
-                          {item.status}
-                        </span>
+                  {currentIntakes.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: 'var(--text3)' }}>
+                        No commodity deposits recorded for this farmer account.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    currentIntakes.map(lot => (
+                      <tr key={lot.id}>
+                        <td>{lot.date}</td>
+                        <td><strong>{lot.id}</strong></td>
+                        <td>
+                          <strong>{lot.commodity}</strong>
+                          <div className="td-secondary">{lot.variety}</div>
+                        </td>
+                        <td style={{ fontWeight: '600' }}>{lot.quantity.toLocaleString()} kg</td>
+                        <td>
+                          <span className={`badge ${lot.gradeClass}`}>{lot.grade}</span>
+                        </td>
+                        <td>{lot.warehouse} · {lot.zone}</td>
+                        <td>{lot.moisture}%</td>
+                        <td>
+                          <span className={`badge ${
+                            lot.status === 'Available' ? 'badge-teal' :
+                            lot.status === 'Reserved' ? 'badge-blue' :
+                            lot.status === 'Returned' ? 'badge-red' : 'badge-amber'
+                          }`}>{lot.status}</span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
-
         </div>
+      )}
 
-      </div>
+      {/* 2. WITHDRAWAL REQUESTS VIEW */}
+      {activeTab === 'withdrawal-requests' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div>
+            <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text)' }}>Withdrawal Requests</div>
+            <div style={{ color: 'var(--text3)', fontSize: '12.5px', marginTop: '4px' }}>
+              Submit partial or full crop withdrawal requests and verify security OTP tokens
+            </div>
+          </div>
 
+          <div className="transfers-split-layout">
+            {/* Left Column: Form */}
+            <div className="card">
+              <div className="card-header">
+                <div className="section-title">Submit Outbound Request</div>
+              </div>
+              <form onSubmit={handleWithdrawSubmit} style={{ padding: '20px' }}>
+                <div className="form-grid" style={{ gridTemplateColumns: '1fr', gap: '14px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Select Deposited Commodity</label>
+                    <select 
+                      className="form-select"
+                      value={withdrawCommodity}
+                      onChange={(e) => setWithdrawCommodity(e.target.value)}
+                    >
+                      <option value="Rice">Rice (Basmati) - {activeReceipts.find(w => w.commodity === 'Rice')?.quantity || 0} kg available</option>
+                      <option value="Wheat">Wheat (Lokwan) - {activeReceipts.find(w => w.commodity === 'Wheat')?.quantity || 0} kg available</option>
+                      <option value="Soybean">Soybean - {activeReceipts.find(w => w.commodity === 'Soybean')?.quantity || 0} kg available</option>
+                      <option value="Onion">Onion - {activeReceipts.find(w => w.commodity === 'Onion')?.quantity || 0} kg available</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Withdrawal Quantity (kg)</label>
+                    <input 
+                      type="number"
+                      className="form-input"
+                      value={withdrawQuantity}
+                      onChange={(e) => setWithdrawQuantity(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Withdrawal Reason</label>
+                    <select 
+                      className="form-select"
+                      value={withdrawReason}
+                      onChange={(e) => setWithdrawReason(e.target.value)}
+                    >
+                      <option value="Sale to local trader">Sale to local trader</option>
+                      <option value="Processing & milling">Processing & milling</option>
+                      <option value="Self consumption">Self consumption</option>
+                      <option value="Reprocessing/drying">Reprocessing / Drying</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label className="form-label" style={{ margin: 0 }}>Digital Verification Token (OTP)</label>
+                      <button 
+                        type="button" 
+                        className="btn btn-outline"
+                        style={{ padding: '2px 8px', fontSize: '11px', background: '#fff', borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 'bold' }}
+                        onClick={handleRequestOtp}
+                      >
+                        {otpSent ? 'Resend SMS OTP' : 'Request OTP Token'}
+                      </button>
+                    </div>
+                    <input 
+                      type="text"
+                      className="form-input"
+                      placeholder={otpSent ? "Enter 6-digit OTP token" : "Click Request OTP first"}
+                      maxLength="6"
+                      value={digitalToken}
+                      onChange={(e) => setDigitalToken(e.target.value)}
+                      disabled={!otpSent}
+                      required
+                    />
+                    <div style={{ fontSize: '11px', color: 'var(--text3)', marginTop: '4px' }}>
+                      {otpSent 
+                        ? `A verification SMS token has been pushed to ${selectedFarmer.phone}` 
+                        : 'Secure authentication OTP code is required for stock release validation.'
+                      }
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button type="submit" className="btn btn-primary" style={{ background: '#1E4D36', borderColor: '#1E4D36' }}>
+                    Authorize & Submit Request
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Right Column: History */}
+            <div className="card">
+              <div className="card-header">
+                <div className="section-title">Withdrawal Activity Log</div>
+              </div>
+              <div className="table-responsive">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Request ID</th>
+                      <th>Date</th>
+                      <th>Commodity</th>
+                      <th>Qty (kg)</th>
+                      <th>Reason</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {withdrawalRequests.map(req => (
+                      <tr key={req.id}>
+                        <td><strong>{req.id}</strong></td>
+                        <td>{req.date}</td>
+                        <td>{req.commodity}</td>
+                        <td style={{ fontWeight: '500' }}>{req.quantity.toLocaleString()} kg</td>
+                        <td>{req.reason}</td>
+                        <td>
+                          <span className={`badge ${req.status === 'Completed' ? 'badge-green' : 'badge-blue'}`}>
+                            {req.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. FARMER PROFILE VIEW */}
+      {activeTab === 'farmer-profile' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div>
+            <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text)' }}>Farmer Profile</div>
+            <div style={{ color: 'var(--text3)', fontSize: '12.5px', marginTop: '4px' }}>
+              Verify personal records, linked bank accounts, and linked FPO master data
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
+            {/* Personal Details */}
+            <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+              <div className="card-header" style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
+                <div className="section-title">👤 Personal Details</div>
+              </div>
+              <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '20px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>Farmer Full Name</div>
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>{selectedFarmer.name}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>Farmer Registration ID</div>
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>{selectedFarmer.id}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>Mobile Contact</div>
+                  <div style={{ fontSize: '14px', fontWeight: '500' }}>{selectedFarmer.phone}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>Aadhaar Number</div>
+                  <div style={{ fontSize: '14px', fontWeight: '500' }}>{displayAadhaar}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>Residential Village</div>
+                  <div style={{ fontSize: '14px', fontWeight: '500' }}>{selectedFarmer.village || 'Wai'}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bank Details */}
+            <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+              <div className="card-header" style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
+                <div className="section-title">💳 Bank Account Details</div>
+              </div>
+              <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '20px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>Lien Lending Bank</div>
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>{selectedFarmer.bankName}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>Account Number</div>
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>{selectedFarmer.bankAcc}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>IFSC Code</div>
+                  <div style={{ fontSize: '14px', fontWeight: '500' }}>{selectedFarmer.bankIfsc}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>Bank Branch Location</div>
+                  <div style={{ fontSize: '14px', fontWeight: '500' }}>{selectedFarmer.bankBranch}</div>
+                </div>
+                <div style={{ padding: '8px 12px', background: 'var(--green-light)', border: '1px solid rgba(45,106,79,0.2)', borderRadius: '6px', fontSize: '12px', color: 'var(--green)', marginTop: '10px' }}>
+                  ✔ Validated with DBT (Direct Benefit Transfer) gateway portal.
+                </div>
+              </div>
+            </div>
+
+            {/* Linked FPO */}
+            <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+              <div className="card-header" style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
+                <div className="section-title">🌾 Linked FPO Center</div>
+              </div>
+              <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '20px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>FPO Co-operative Name</div>
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>{selectedFarmer.linkedFpo}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>FPO Regional Manager</div>
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>{selectedFarmer.fpoContact}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>GPS Geo-Coordinates</div>
+                  <div style={{ fontSize: '14px', fontWeight: '500', color: 'var(--blue)' }}>{selectedFarmer.fpoCoordinates}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>Associated APMC Yard</div>
+                  <div style={{ fontSize: '14px', fontWeight: '500' }}>Wai APMC Mandi, Satara</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

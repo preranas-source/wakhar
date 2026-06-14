@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function Reports({ intakes = [], receipts = [], activities = [] }) {
+export default function Reports({ intakes = [], receipts = [], activities = [], role }) {
   const [selectedReport, setSelectedReport] = useState(null);
 
   // 1. Report structures and details
@@ -39,7 +39,6 @@ export default function Reports({ intakes = [], receipts = [], activities = [] }
       subtext: 'Deposit, withdrawal, outstanding balance',
       icon: '🧑‍🌾',
       getData: () => {
-        // Group deposits by farmer name
         const groups = intakes.reduce((acc, lot) => {
           const fid = lot.farmerId || 'Unknown';
           if (!acc[fid]) {
@@ -76,7 +75,6 @@ export default function Reports({ intakes = [], receipts = [], activities = [] }
       subtext: 'Moisture trends, rejection rates by crop',
       icon: '🧪',
       getData: () => {
-        // Aggregate moisture parameters by crop commodity
         const crops = intakes.reduce((acc, lot) => {
           const c = lot.commodity || 'Others';
           if (!acc[c]) {
@@ -107,21 +105,19 @@ export default function Reports({ intakes = [], receipts = [], activities = [] }
       subtext: 'Handling, grading & storage fee income',
       icon: '💰',
       getData: () => {
-        // Compute FPO specific earnings based on stock sizes
         const fpos = {
           'Wai FPO': { name: 'Wai FPO', storage: 12400, handling: 3200, grading: 1500 },
           'Phaltan FPO': { name: 'Phaltan FPO', storage: 21500, handling: 5400, grading: 2800 },
           'Baramati FPO': { name: 'Baramati FPO', storage: 9800, handling: 2500, grading: 1200 }
         };
 
-        // Dynamically add weights from current lot sizes to storage fees
         intakes.forEach(lot => {
           const whName = lot.warehouse || 'Wai FPO';
           const matchedKey = Object.keys(fpos).find(k => whName.includes(k));
           if (matchedKey) {
-            fpos[matchedKey].storage += Math.round(Number(lot.quantity || 0) * 2.5); // ₹2.5 / kg storage charge
-            fpos[matchedKey].handling += Math.round(Number(lot.quantity || 0) * 0.5); // ₹0.5 / kg handling charge
-            fpos[matchedKey].grading += 250; // ₹250 flat lab fee
+            fpos[matchedKey].storage += Math.round(Number(lot.quantity || 0) * 2.5);
+            fpos[matchedKey].handling += Math.round(Number(lot.quantity || 0) * 0.5);
+            fpos[matchedKey].grading += 250;
           }
         });
 
@@ -170,21 +166,118 @@ export default function Reports({ intakes = [], receipts = [], activities = [] }
   };
 
   const activeReport = reportsList.find(r => r.id === selectedReport);
+  const isAggregator = role === 'aggregator';
 
   return (
-    <div className="page active" id="page-reports">
+    <div className="page active" id="page-reports" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* HEADER SECTION */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-        <div>
-          <div className="section-title" style={{ fontSize: '20px' }}>Reports & Analytics</div>
-          <div className="section-sub" style={{ color: 'var(--text3)', fontSize: '12.5px', marginTop: '6px' }}>
-            Reports & Analytics
-          </div>
-          <div style={{ fontSize: '12px', color: 'var(--text2)', marginTop: '2px' }}>
-            Stock, revenue, quality, market linkage
-          </div>
+      <div>
+        <div className="section-title" style={{ fontSize: '20px' }}>
+          {isAggregator ? 'Warehouse Network Analytics' : 'Reports & Analytics'}
+        </div>
+        <div style={{ fontSize: '12.5px', color: 'var(--text3)', marginTop: '4px' }}>
+          {isAggregator 
+            ? 'Consolidated network capacity performance dashboards and market commodity trends'
+            : 'Access inventory lists, moisture analysis histories, and financial revenue reports'}
         </div>
       </div>
+
+      {/* AGGREGATOR SPECIALIZED VISUAL CHARTS */}
+      {isAggregator && (
+        <div className="two-col" style={{ marginBottom: '10px' }}>
+          
+          {/* Capacity Utilization SVG Bar Chart */}
+          <div className="card">
+            <div className="card-header">
+              <div className="section-title">Network Capacity Performance</div>
+            </div>
+            <div className="card-body" style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {/* Wai WH */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', fontWeight: '500', marginBottom: '4px' }}>
+                    <span>Wai FPO Warehouse</span>
+                    <span style={{ fontWeight: 'bold' }}>68% Used (342/500 MT)</span>
+                  </div>
+                  <div style={{ width: '100%', height: '18px', background: '#EDE9E0', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ width: '68%', height: '100%', background: 'var(--green)' }} />
+                  </div>
+                </div>
+
+                {/* Phaltan WH */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', fontWeight: '500', marginBottom: '4px' }}>
+                    <span>Phaltan FPO Warehouse</span>
+                    <span style={{ fontWeight: 'bold', color: 'var(--amber)' }}>89% Used (712/800 MT) - Near Capacity</span>
+                  </div>
+                  <div style={{ width: '100%', height: '18px', background: '#EDE9E0', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ width: '89%', height: '100%', background: 'var(--amber)' }} />
+                  </div>
+                </div>
+
+                {/* Baramati WH */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', fontWeight: '500', marginBottom: '4px' }}>
+                    <span>Baramati FPO Warehouse</span>
+                    <span style={{ fontWeight: 'bold' }}>48% Used (288/600 MT)</span>
+                  </div>
+                  <div style={{ width: '100%', height: '18px', background: '#EDE9E0', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ width: '48%', height: '100%', background: 'var(--green)' }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Pricing Trends SVG Line Chart */}
+          <div className="card">
+            <div className="card-header">
+              <div className="section-title">Commodity Mandi Price Trends (Last 6 Months)</div>
+            </div>
+            <div className="card-body" style={{ padding: '16px 20px', textAlign: 'center' }}>
+              {/* Premium Inline SVG Chart */}
+              <svg viewBox="0 0 400 150" width="100%" height="120" style={{ overflow: 'visible' }}>
+                {/* Grid Lines */}
+                <line x1="20" y1="20" x2="380" y2="20" stroke="#EDE9E0" strokeDasharray="3" />
+                <line x1="20" y1="60" x2="380" y2="60" stroke="#EDE9E0" strokeDasharray="3" />
+                <line x1="20" y1="100" x2="380" y2="100" stroke="#EDE9E0" strokeDasharray="3" />
+                <line x1="20" y1="130" x2="380" y2="130" stroke="#CCCCCC" />
+
+                {/* Line 1: Soybean (Green) */}
+                <path 
+                  d="M 20 110 L 92 95 L 164 100 L 236 80 L 308 65 L 380 40" 
+                  fill="none" 
+                  stroke="var(--green)" 
+                  strokeWidth="3" 
+                  strokeLinecap="round"
+                />
+                
+                {/* Line 2: Wheat (Blue) */}
+                <path 
+                  d="M 20 120 L 92 115 L 164 110 L 236 100 L 308 95 L 380 90" 
+                  fill="none" 
+                  stroke="var(--blue)" 
+                  strokeWidth="3" 
+                  strokeLinecap="round"
+                />
+
+                {/* Labels */}
+                <text x="20" y="145" fontSize="9" fill="var(--text3)" textAnchor="middle">Jan</text>
+                <text x="92" y="145" fontSize="9" fill="var(--text3)" textAnchor="middle">Feb</text>
+                <text x="164" y="145" fontSize="9" fill="var(--text3)" textAnchor="middle">Mar</text>
+                <text x="236" y="145" fontSize="9" fill="var(--text3)" textAnchor="middle">Apr</text>
+                <text x="308" y="145" fontSize="9" fill="var(--text3)" textAnchor="middle">May</text>
+                <text x="380" y="145" fontSize="9" fill="var(--text3)" textAnchor="middle">Jun</text>
+
+                {/* Y Axis Legend */}
+                <text x="390" y="45" fontSize="8.5" fill="var(--green)" fontWeight="bold">Soybean (+30%)</text>
+                <text x="390" y="95" fontSize="8.5" fill="var(--blue)" fontWeight="bold">Wheat (+12%)</text>
+              </svg>
+            </div>
+          </div>
+
+        </div>
+      )}
 
       {/* REPORTS DASHBOARD GRID */}
       <div className="reports-grid">
@@ -201,7 +294,7 @@ export default function Reports({ intakes = [], receipts = [], activities = [] }
                 style={{ padding: '6px 12px', fontSize: '12px', background: '#fff' }}
                 onClick={() => setSelectedReport(report.id)}
               >
-                View
+                View Report
               </button>
               <button 
                 className="btn btn-outline" 
@@ -374,15 +467,15 @@ export default function Reports({ intakes = [], receipts = [], activities = [] }
                       {activeReport.getData().map(f => {
                         const totalFee = f.storage + f.handling + f.grading;
                         return (
-                          <tr key={f.name}>
-                            <td><strong>{f.name}</strong></td>
-                            <td>₹{f.storage.toLocaleString()}</td>
-                            <td>₹{f.handling.toLocaleString()}</td>
-                            <td>₹{f.grading.toLocaleString()}</td>
-                            <td style={{ fontWeight: '600', color: 'var(--green)' }}>
-                              ₹{totalFee.toLocaleString()}
-                            </td>
-                          </tr>
+                           <tr key={f.name}>
+                             <td><strong>{f.name}</strong></td>
+                             <td>₹{f.storage.toLocaleString()}</td>
+                             <td>₹{f.handling.toLocaleString()}</td>
+                             <td>₹{f.grading.toLocaleString()}</td>
+                             <td style={{ fontWeight: '600', color: 'var(--green)' }}>
+                               ₹{totalFee.toLocaleString()}
+                             </td>
+                           </tr>
                         );
                       })}
                     </tbody>

@@ -22,24 +22,25 @@ export default function Grading({
   // 3. New QC Record Wizard Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newLotId, setNewLotId] = useState('');
-  const [newMoisture, setNewMoisture] = useState('13.5');
-  const [newForeignMatter, setNewForeignMatter] = useState('0.8');
-  const [newBrokenGrains, setNewBrokenGrains] = useState('1.5');
-  const [newInspector, setNewInspector] = useState('FPO Staff');
+  const [newMoisture, setNewMoisture] = useState('12.5');
+  const [newForeignMatter, setNewForeignMatter] = useState('0.5');
+  const [newBrokenGrains, setNewBrokenGrains] = useState('1.2');
+  const [newProtein, setNewProtein] = useState('12.1'); // New Parameter
+  const [newInspector, setNewInspector] = useState('Govt Lab Officer');
 
   // Enrich intake lot database with mock visual parameters matching the mockup screenshots
   const getQualityParams = (lot) => {
     if (lot.id === 'LOT-2026-091') {
-      return { fm: '0.8%', bg: '1.2%', inspector: 'Inspectorate Ltd.', date: '30 May', certStatus: 'Download' };
+      return { fm: '0.8%', bg: '1.2%', protein: '12.4%', inspector: 'Inspectorate Ltd.', date: '30 May', certStatus: 'Download' };
     }
     if (lot.id === 'LOT-2026-090') {
-      return { fm: '1.0%', bg: '2.1%', inspector: 'FPO Staff', date: '30 May', certStatus: 'Download' };
+      return { fm: '1.0%', bg: '2.1%', protein: '11.8%', inspector: 'FPO Staff', date: '30 May', certStatus: 'Download' };
     }
     if (lot.id === 'LOT-2026-089') {
-      return { fm: '2.4%', bg: '4.5%', inspector: 'FPO Staff', date: '29 May', certStatus: 'Pending' };
+      return { fm: '2.4%', bg: '4.5%', protein: '9.2%', inspector: 'FPO Staff', date: '29 May', certStatus: 'Pending' };
     }
     if (lot.id === 'LOT-2026-087') {
-      return { fm: '5.2%', bg: '8.0%', inspector: 'FPO Staff', date: '28 May', certStatus: 'N/A' };
+      return { fm: '5.2%', bg: '8.0%', protein: '7.8%', inspector: 'FPO Staff', date: '28 May', certStatus: 'N/A' };
     }
 
     // Default calculations for newly certified dynamic lots
@@ -47,7 +48,8 @@ export default function Grading({
     return {
       fm: isHighMoisture ? '2.8%' : '0.6%',
       bg: isHighMoisture ? '4.8%' : '1.4%',
-      inspector: 'FPO Staff',
+      protein: isHighMoisture ? '9.8%' : '11.5%',
+      inspector: 'FPO Lab Tech',
       date: lot.date || 'Today',
       certStatus: lot.status === 'QC Pending' ? 'Pending' : (lot.grade === 'Rejected' ? 'N/A' : 'Download')
     };
@@ -81,7 +83,7 @@ export default function Grading({
     }
   };
 
-  // Submit new QC record form
+  // Submit new QC record form with AGMARK standards
   const handleCreateQCRecord = (e) => {
     e.preventDefault();
     if (!newLotId) {
@@ -94,20 +96,35 @@ export default function Grading({
 
     const moistVal = Number(newMoisture);
     const fmVal = Number(newForeignMatter);
+    const proteinVal = Number(newProtein);
 
-    // Dynamic grading algorithms
+    // AGMARK Standard evaluation logic (crops like Wheat, Soy etc.)
     let computedGrade = 'Grade A';
     let gradeClass = 'badge-green';
     let status = 'Available';
 
-    if (moistVal > 20 || fmVal > 4.5) {
-      computedGrade = 'Rejected';
-      gradeClass = 'badge-red';
-      status = 'Returned';
-    } else if (moistVal > 14 || fmVal > 2.0) {
-      computedGrade = 'Grade B';
-      gradeClass = 'badge-amber';
-      status = 'Available';
+    // Wheat / Grains rule
+    if (targetLot.commodity === 'Wheat' || targetLot.commodity === 'Soybean') {
+      if (moistVal > 16 || fmVal > 2.5 || proteinVal < 8.5) {
+        computedGrade = 'Rejected';
+        gradeClass = 'badge-red';
+        status = 'Returned';
+      } else if (moistVal > 12 || fmVal > 1.2 || proteinVal < 11.0) {
+        computedGrade = 'Grade B';
+        gradeClass = 'badge-amber';
+        status = 'Available';
+      }
+    } else {
+      // General crop rules
+      if (moistVal > 20 || fmVal > 4.5) {
+        computedGrade = 'Rejected';
+        gradeClass = 'badge-red';
+        status = 'Returned';
+      } else if (moistVal > 14 || fmVal > 2.0) {
+        computedGrade = 'Grade B';
+        gradeClass = 'badge-amber';
+        status = 'Available';
+      }
     }
 
     onUpdateGrade(newLotId, computedGrade, gradeClass, moistVal, status);
@@ -121,12 +138,12 @@ export default function Grading({
 
     setIsModalOpen(false);
 
-    alert(`Lab testing complete for Lot ${newLotId}! Grade Certified: "${computedGrade}".`);
+    alert(`Quality certified for Lot ${newLotId}! AGMARK Evaluation: "${computedGrade}".`);
     
     if (onAddActivity) {
       onAddActivity(
         'qc',
-        `Lab Certification — Tested Lot <strong>${newLotId}</strong> (${targetLot.commodity}). Certified Grade: <strong>${computedGrade}</strong> (Moisture: ${moistVal}%, Foreign Matter: ${fmVal}%).`
+        `Lab Certification — Tested Lot <strong>${newLotId}</strong> (${targetLot.commodity}). Certified Grade: <strong>${computedGrade}</strong> (Moisture: ${moistVal}%, Foreign Matter: ${fmVal}%, Protein: ${proteinVal}%).`
       );
     }
   };
@@ -155,6 +172,23 @@ export default function Grading({
 
   return (
     <div className="page active" id="page-grading" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      
+      {/* AGMARK Standard threshold reference guidelines cards */}
+      <div className="stat-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <div style={{ background: 'var(--green-light)', border: '1px solid rgba(45,106,79,0.2)', padding: '12px 16px', borderRadius: '8px' }}>
+          <div style={{ fontWeight: 'bold', fontSize: '13px', color: 'var(--green)' }}>🌾 Wheat AGMARK Grade A Standards</div>
+          <div style={{ fontSize: '12px', color: 'var(--text2)', marginTop: '4px' }}>
+            Moisture &le; 12% · Foreign Matter &le; 0.75% · Minimum Protein &ge; 11.5%
+          </div>
+        </div>
+        <div style={{ background: 'var(--amber-light)', border: '1px solid rgba(181,98,10,0.2)', padding: '12px 16px', borderRadius: '8px' }}>
+          <div style={{ fontWeight: 'bold', fontSize: '13px', color: 'var(--amber)' }}>🌱 Soybean AGMARK Grade A Standards</div>
+          <div style={{ fontSize: '12px', color: 'var(--text2)', marginTop: '4px' }}>
+            Moisture &le; 11% · Impurities &le; 1.0% · Minimum Protein &ge; 36.0%
+          </div>
+        </div>
+      </div>
+
       {/* REJECT / RETURN WORKFLOW PANEL */}
       {rejectedLot && (
         <div className="card" style={{ border: '1px solid rgba(155, 35, 53, 0.2)' }}>
@@ -182,6 +216,7 @@ export default function Grading({
                 >
                   <option value="Moisture above threshold">Moisture above threshold</option>
                   <option value="Foreign matter exceeds limit">Foreign matter exceeds limit</option>
+                  <option value="Protein content below baseline">Protein content below baseline</option>
                   <option value="Infestation / Weevils detected">Infestation / Weevils detected</option>
                 </select>
               </div>
@@ -257,7 +292,7 @@ export default function Grading({
               Quality Certificate — {certifiedLot.id} ({certifiedLot.grade})
             </div>
             <span style={{ color: 'var(--green)', fontWeight: '600', fontSize: '12.5px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-              <span style={{ fontSize: '14px' }}>•</span> Eligible for Financing
+              <span style={{ fontSize: '14px' }}>•</span> Eligible for e-WR Financing
             </span>
           </div>
 
@@ -274,43 +309,38 @@ export default function Grading({
                 </div>
               </div>
               <div className="form-group">
-                <label className="form-label">Standard</label>
+                <label className="form-label">Standard Reference</label>
                 <div className="qc-field-val">AGMARK / eNAM</div>
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginTop: '4px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginTop: '4px' }}>
               <div className="form-group">
                 <label className="form-label">Moisture</label>
                 <div className="qc-field-val-check">
                   <span>{certifiedLot.moisture}%</span>
-                  <span className="check-icon-badge">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  </span>
+                  <span className="check-icon-badge">✓</span>
                 </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Foreign Matter</label>
                 <div className="qc-field-val-check">
                   <span>{certifiedParams.fm}</span>
-                  <span className="check-icon-badge">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  </span>
+                  <span className="check-icon-badge">✓</span>
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Protein Content</label>
+                <div className="qc-field-val-check">
+                  <span>{certifiedParams.protein || '12.1%'}</span>
+                  <span className="check-icon-badge">✓</span>
                 </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Broken Grains</label>
                 <div className="qc-field-val-check">
                   <span>{certifiedParams.bg}</span>
-                  <span className="check-icon-badge">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  </span>
+                  <span className="check-icon-badge">✓</span>
                 </div>
               </div>
             </div>
@@ -327,7 +357,7 @@ export default function Grading({
               <button 
                 type="button" 
                 className="btn btn-primary" 
-                style={{ background: 'var(--green)', color: '#fff' }}
+                style={{ background: 'var(--green)', color: '#fff', borderColor: 'var(--green)' }}
                 onClick={() => alert(`Quality certificate for Lot ${certifiedLot.id} sent to depositor farmer via WhatsApp/SMS successfully.`)}
               >
                 Send to Farmer (WhatsApp)
@@ -356,11 +386,12 @@ export default function Grading({
                 <th>Commodity</th>
                 <th>Moisture %</th>
                 <th>Foreign Matter %</th>
+                <th>Protein %</th>
                 <th>Broken Grains %</th>
                 <th>Grade Awarded</th>
                 <th>Inspected By</th>
                 <th>Date</th>
-                <th>Certificate</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -368,7 +399,6 @@ export default function Grading({
                 const params = getQualityParams(lot);
                 const isSelected = selectedRejectedLotId === lot.id || selectedCertifiedLotId === lot.id;
                 
-                // Color formatting for moisture thresholds
                 let moistureColor = 'var(--text)';
                 if (lot.moisture > 20) moistureColor = 'var(--red)';
                 else if (lot.moisture > 14) moistureColor = 'var(--amber)';
@@ -389,6 +419,7 @@ export default function Grading({
                       {lot.moisture}%
                     </td>
                     <td>{params.fm}</td>
+                    <td style={{ fontWeight: '500' }}>{params.protein}</td>
                     <td>{params.bg}</td>
                     <td>
                       <span className={`badge ${lot.gradeClass || 'badge-gray'}`}>
@@ -407,7 +438,7 @@ export default function Grading({
                             alert(`Downloading quality certificate PDF for Lot ${lot.id}...`);
                           }}
                         >
-                          📄 Download
+                          📄 Certificate
                         </button>
                       ) : (
                         <span style={{ fontSize: '12px', color: 'var(--text3)' }}>{params.certStatus}</span>
@@ -424,7 +455,7 @@ export default function Grading({
       {/* NEW QC RECORD DIALOG MODAL */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '460px' }}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
             <div className="modal-header">
               <div className="modal-title">New Quality Control Record</div>
               <button className="modal-close" onClick={() => setIsModalOpen(false)}>×</button>
@@ -448,7 +479,7 @@ export default function Grading({
                   </select>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
                   <div className="form-group">
                     <label className="form-label">Moisture (%)</label>
                     <input 
@@ -461,18 +492,32 @@ export default function Grading({
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Foreign Matter</label>
+                    <label className="form-label">Foreign Matter (%)</label>
                     <input 
                       type="number" 
-                      step="0.1"
+                      step="0.05"
                       className="form-input"
                       value={newForeignMatter}
                       onChange={(e) => setNewForeignMatter(e.target.value)}
                       required
                     />
                   </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
                   <div className="form-group">
-                    <label className="form-label">Broken Grains</label>
+                    <label className="form-label">Protein Content (%)</label>
+                    <input 
+                      type="number" 
+                      step="0.1"
+                      className="form-input"
+                      value={newProtein}
+                      onChange={(e) => setNewProtein(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Broken Grains (%)</label>
                     <input 
                       type="number" 
                       step="0.1"
@@ -485,7 +530,7 @@ export default function Grading({
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Inspector / Agency</label>
+                  <label className="form-label">Inspector / Assayer Agency</label>
                   <input 
                     type="text" 
                     className="form-input"

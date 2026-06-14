@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import axios from 'axios';
+import { apiSim, getTranslation, getSubstringsDict } from '@wakhar/shared';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Intake from './pages/Intake';
@@ -81,9 +84,40 @@ const initialActivities = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const { roleKey, tabName } = useParams();
+  const navigate = useNavigate();
+
+  // Derive role and activeTab directly from URL routes
+  const role = roleKey || localStorage.getItem('role') || 'fpo';
+  const activeTab = tabName || (role === 'farmer' ? 'farmer' : 'dashboard');
+
+  const setRole = (newRole) => {
+    localStorage.setItem('role', newRole);
+    const defaultTab = newRole === 'farmer' ? 'farmer' : 'dashboard';
+    navigate(`/${newRole}/${defaultTab}`);
+  };
+
+  const setActiveTab = (newTab) => {
+    navigate(`/${role}/${newTab}`);
+  };
+
+  const getInitialUser = (currentRole) => {
+    switch(currentRole) {
+      case 'farmer':
+        return { name: 'Suresh Patil', role: 'Farmer (FM-00412)', initials: 'SP', view: 'farmer', roleKey: 'farmer' };
+      case 'fpo':
+        return { name: 'Rajesh Bhosale', role: 'FPO Manager', initials: 'RB', view: 'dashboard', roleKey: 'fpo' };
+      case 'aggregator':
+        return { name: 'Satara Aggregators', role: 'Aggregator Buyer', initials: 'SA', view: 'aggregator', roleKey: 'aggregator' };
+      case 'market_partner':
+        return { name: 'Raigad Mart', role: 'Market Partner', initials: 'RM', view: 'dashboard', roleKey: 'market_partner' };
+      default:
+        return { name: 'Rajesh Bhosale', role: 'FPO Manager', initials: 'RB', view: 'dashboard', roleKey: 'fpo' };
+    }
+  };
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentUser, setCurrentUser] = useState({ name: 'Rajesh Bhosale', role: 'FPO Manager', initials: 'RB', view: 'dashboard' });
+  const [currentUser, setCurrentUser] = useState(() => getInitialUser(role));
   const [language, setLanguage] = useState(() => {
     return localStorage.getItem('wakhar_language') || 'en';
   });
@@ -110,10 +144,239 @@ export default function App() {
   });
 
   const [showAlertsModal, setShowAlertsModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Authentication & Session Loading from Backend
+  useEffect(() => {
+    const token = localStorage.getItem('wakhar_access_token');
+    if (!token) {
+      navigate('/');
+      return;
+    }
+
+    const fetchProfile = async () => {
+      try {
+        const response = await axios.get('http://localhost:8000/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        const user = response.data;
+        const mappedRole = (user.role === 'fpo_manager' || user.role === 'fpo_staff') ? 'fpo' : user.role;
+        
+        localStorage.setItem('role', mappedRole);
+        
+        // Correct path routing matching mappedRole
+        if (!roleKey || roleKey !== mappedRole) {
+          const defaultTab = mappedRole === 'farmer' ? 'farmer' : 'dashboard';
+          navigate(`/${mappedRole}/${defaultTab}`, { replace: true });
+        }
+        
+        const nameParts = user.full_name.split(' ');
+        const initials = user.initials || (nameParts.length > 1 ? nameParts[0][0] + nameParts[1][0] : nameParts[0][0]).toUpperCase();
+
+        const roleLabels = {
+          fpo_manager: 'FPO Manager',
+          fpo_staff: 'FPO Staff',
+          farmer: `Farmer (${user.phone})`,
+          aggregator: 'Aggregator Buyer',
+          market_partner: 'Market Partner',
+          admin: 'System Admin'
+        };
+
+        setCurrentUser({
+          name: user.full_name,
+          role: roleLabels[user.role] || user.role,
+          initials: initials,
+          view: mappedRole === 'farmer' ? 'farmer' : mappedRole === 'aggregator' ? 'aggregator' : 'dashboard',
+          roleKey: mappedRole
+        });
+      } catch (err) {
+        console.error('Session verification failed:', err);
+        localStorage.removeItem('wakhar_access_token');
+        navigate('/');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [navigate, roleKey]);
 
   // Sync back to localstorage
   useEffect(() => {
     localStorage.setItem('wakhar_language', language);
+  }, [language]);
+
+  // Dynamic DOM Translation Observer
+  useEffect(() => {
+    const substrings = getSubstringsDict() || {};
+
+    const escapeRegExp = (string) => {
+      return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    };
+
+    const walkAndTranslate = (node) => {
+      if (!node) return;
+      if (node.nodeType === Node.TEXT_NODE) {
+        const originalText = node.nodeValue;
+        const trimmed = originalText.trim();
+        if (trimmed) {
+          if (node.__translatedText && originalText === node.__translatedText) {
+            return;
+          }
+          
+          let translated = getTranslation(trimmed, language);
+          
+          if (translated === trimmed) {
+            // Apply substring replacements for dynamic texts
+            const subDict = substrings[language];
+            if (subDict) {
+              let replacedText = trimmed;
+              const keys = Object.keys(subDict).sort((a, b) => b.length - a.length);
+              let hasChange = false;
+              for (const key of keys) {
+                const isWord = /^[a-zA-Z0-9_\-\s]+$/.test(key);
+                let regex;
+                if (isWord) {
+                  regex = new RegExp('\\b' + escapeRegExp(key) + '\\b', 'gi');
+                } else {
+                  regex = new RegExp(escapeRegExp(key), 'g');
+                }
+                if (regex.test(replacedText)) {
+                  replacedText = replacedText.replace(regex, subDict[key]);
+                  hasChange = true;
+                }
+              }
+              if (hasChange) {
+                translated = replacedText;
+              }
+            }
+          }
+
+          if (translated && translated !== trimmed) {
+            if (!node.__originalText) {
+              node.__originalText = originalText;
+            }
+            const leading = originalText.match(/^\s*/)[0];
+            const trailing = originalText.match(/\s*$/)[0];
+            node.__translatedText = leading + translated + trailing;
+            node.nodeValue = node.__translatedText;
+          }
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const tagName = node.tagName.toUpperCase();
+        if (tagName === 'SCRIPT' || tagName === 'STYLE') return;
+
+        if (tagName === 'INPUT' || tagName === 'TEXTAREA') {
+          const placeholder = node.getAttribute('placeholder');
+          if (placeholder) {
+            if (node.__translatedPlaceholder && placeholder === node.__translatedPlaceholder) {
+              // already translated
+            } else {
+              let translated = getTranslation(placeholder, language);
+              if (translated === placeholder) {
+                const subDict = substrings[language];
+                if (subDict) {
+                  let replacedText = placeholder;
+                  const keys = Object.keys(subDict).sort((a, b) => b.length - a.length);
+                  let hasChange = false;
+                  for (const key of keys) {
+                    const isWord = /^[a-zA-Z0-9_\-\s]+$/.test(key);
+                    let regex;
+                    if (isWord) {
+                      regex = new RegExp('\\b' + escapeRegExp(key) + '\\b', 'gi');
+                    } else {
+                      regex = new RegExp(escapeRegExp(key), 'g');
+                    }
+                    if (regex.test(replacedText)) {
+                      replacedText = replacedText.replace(regex, subDict[key]);
+                      hasChange = true;
+                    }
+                  }
+                  if (hasChange) {
+                    translated = replacedText;
+                  }
+                }
+              }
+              if (translated && translated !== placeholder) {
+                node.__originalPlaceholder = placeholder;
+                node.__translatedPlaceholder = translated;
+                node.setAttribute('placeholder', translated);
+              }
+            }
+          }
+        }
+
+        for (let i = 0; i < node.childNodes.length; i++) {
+          walkAndTranslate(node.childNodes[i]);
+        }
+      }
+    };
+
+    const walkAndRestore = (node) => {
+      if (!node) return;
+      if (node.nodeType === Node.TEXT_NODE) {
+        if (node.__originalText !== undefined) {
+          node.nodeValue = node.__originalText;
+          node.__translatedText = undefined;
+          node.__originalText = undefined;
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const tagName = node.tagName.toUpperCase();
+        if (tagName === 'SCRIPT' || tagName === 'STYLE') return;
+
+        if (tagName === 'INPUT' || tagName === 'TEXTAREA') {
+          if (node.__originalPlaceholder !== undefined) {
+            node.setAttribute('placeholder', node.__originalPlaceholder);
+            node.__translatedPlaceholder = undefined;
+            node.__originalPlaceholder = undefined;
+          }
+        }
+
+        for (let i = 0; i < node.childNodes.length; i++) {
+          walkAndRestore(node.childNodes[i]);
+        }
+      }
+    };
+
+    let observer = null;
+    const applyTranslation = () => {
+      if (observer) observer.disconnect();
+      if (language === 'en') {
+        walkAndRestore(document.body);
+      } else {
+        walkAndTranslate(document.body);
+      }
+      if (observer) {
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+          characterData: true,
+          attributes: true,
+          attributeFilter: ['placeholder']
+        });
+      }
+    };
+
+    observer = new MutationObserver(() => {
+      applyTranslation();
+    });
+
+    applyTranslation();
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['placeholder']
+    });
+
+    return () => {
+      if (observer) {
+        observer.disconnect();
+      }
+    };
   }, [language]);
 
   useEffect(() => {
@@ -138,7 +401,7 @@ export default function App() {
   // handlers
   const handleAddIntake = (newLot) => {
     setIntakes(prev => [newLot, ...prev]);
-    
+
     // Add log
     const logTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ', Today';
     const intakeLog = {
@@ -148,6 +411,9 @@ export default function App() {
     };
 
     setActivities(prev => [intakeLog, ...prev]);
+
+    // ERPNext Sync Integration
+    apiSim.syncERPNextStock(newLot);
 
     // If not returned, create warehouse receipt
     if (newLot.status !== 'Returned') {
@@ -179,7 +445,12 @@ export default function App() {
       };
 
       setReceipts(prev => [newWR, ...prev]);
-      
+
+      // Trigger Farmer SMS and WhatsApp receipt simulated delivery
+      const farmer = initialFarmers.find(f => f.id === newLot.farmerId) || { phone: '+91 98765 43210' };
+      apiSim.sendSMSNotification(farmer.phone, `WAKHAR: Deposit of ${newLot.quantity} kg ${newLot.commodity} at ${newLot.warehouse} (Grade: ${newLot.grade}) recorded successfully. Receipt Ref: ${wrId}.`);
+      apiSim.sendWhatsAppReceipt(farmer.phone, wrId, `Commodity: ${newLot.commodity}, Weight: ${newLot.quantity} kg, Grade: ${newLot.grade}, Valued at: ₹${valuation.toLocaleString()}`);
+
       // Append e-WR notification log
       setActivities(prev => [
         {
@@ -260,7 +531,10 @@ export default function App() {
 
   const handleAddDispatch = (newDispatch, lotId) => {
     setDispatches(prev => [newDispatch, ...prev]);
-    
+
+    // Fleetbase API Sync Integration
+    apiSim.triggerFleetbaseDispatch(newDispatch);
+
     // Lock lot status as Reserved
     setIntakes(prev => prev.map(lot => {
       if (lot.id === lotId) {
@@ -278,6 +552,7 @@ export default function App() {
       },
       ...prev
     ]);
+
   };
 
   const handleApplyCollateral = (receiptId, bank, amount) => {
@@ -319,10 +594,33 @@ export default function App() {
     }, 4000);
   };
 
+  const handleUpdateDispatch = (updatedDispatch) => {
+    setDispatches(prev => prev.map(d => d.id === updatedDispatch.id ? updatedDispatch : d));
+  };
+
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        background: '#FEFCF8',
+        color: '#1C1A14',
+        fontFamily: 'system-ui'
+      }}>
+        <div style={{ fontSize: '32px', marginBottom: '16px' }}>🌾</div>
+        <div style={{ fontSize: '18px', fontWeight: 'bold' }}>Wakhar WMS</div>
+        <div style={{ fontSize: '14px', color: '#8A8070', marginTop: '8px' }}>Authenticating session...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
-      <Layout 
-        activeTab={activeTab} 
+      <Layout
+        activeTab={activeTab}
         setActiveTab={setActiveTab}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
@@ -334,21 +632,24 @@ export default function App() {
         dispatchesCount={dispatches.filter(d => d.status === 'In Transit').length}
         language={language}
         setLanguage={setLanguage}
+        role={role}
+        setRole={setRole}
       >
         {activeTab === 'dashboard' && (
-          <Dashboard 
-            intakes={intakes} 
-            dispatches={dispatches} 
+          <Dashboard
+            intakes={intakes}
+            dispatches={dispatches}
             receipts={receipts}
             setActiveTab={setActiveTab}
             activities={activities}
             language={language}
+            role={role}
           />
         )}
 
         {activeTab === 'intake' && (
-          <Intake 
-            intakes={intakes} 
+          <Intake
+            intakes={intakes}
             onAddIntake={handleAddIntake}
             farmersList={initialFarmers}
             activeTab={activeTab}
@@ -358,8 +659,8 @@ export default function App() {
         )}
 
         {activeTab === 'intake-new' && (
-          <Intake 
-            intakes={intakes} 
+          <Intake
+            intakes={intakes}
             onAddIntake={handleAddIntake}
             farmersList={initialFarmers}
             activeTab={activeTab}
@@ -370,8 +671,10 @@ export default function App() {
         )}
 
         {activeTab === 'inventory' && (
-          <Inventory 
-            intakes={intakes} 
+          <Inventory
+            intakes={intakes}
+            receipts={receipts}
+            dispatches={dispatches}
             onDispatchLot={handleDispatchLot}
             searchQuery={searchQuery}
             language={language}
@@ -379,18 +682,20 @@ export default function App() {
         )}
 
         {activeTab === 'dispatch' && (
-          <Dispatch 
-            dispatches={dispatches} 
+          <Dispatch
+            dispatches={dispatches}
             intakes={intakes}
             onAddDispatch={handleAddDispatch}
+            onUpdateDispatch={handleUpdateDispatch}
             searchQuery={searchQuery}
             language={language}
+            role={role}
           />
         )}
 
         {activeTab === 'grading' && (
-          <Grading 
-            intakes={intakes} 
+          <Grading
+            intakes={intakes}
             onUpdateGrade={handleUpdateGrade}
             searchQuery={searchQuery}
             language={language}
@@ -405,28 +710,32 @@ export default function App() {
         )}
 
         {activeTab === 'receipts' && (
-          <Receipts 
-            receipts={receipts} 
+          <Receipts
+            receipts={receipts}
             intakes={intakes}
             onApplyCollateral={handleApplyCollateral}
             searchQuery={searchQuery}
             language={language}
+            role={role}
           />
         )}
 
-        {activeTab === 'market' && (
-          <Market 
-            intakes={intakes} 
+        {(activeTab === 'market' || activeTab === 'purchase-orders') && (
+          <Market
+            intakes={intakes}
             onReserveLot={handleReserveLot}
             searchQuery={searchQuery}
             language={language}
+            role={role}
+            activeTab={activeTab}
           />
         )}
 
         {activeTab === 'transfers' && (
-          <Transfers 
-            intakes={intakes} 
+          <Transfers
+            intakes={intakes}
             language={language}
+            role={role}
             onAddActivity={(type, text) => {
               const logTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ', Today';
               setActivities(prev => [
@@ -438,19 +747,21 @@ export default function App() {
         )}
 
         {activeTab === 'stockcount' && (
-          <StockCount 
+          <StockCount
             intakes={intakes}
             language={language}
           />
         )}
 
-        {activeTab === 'farmer' && (
-          <FarmerPortal 
-            intakes={intakes} 
+        {(activeTab === 'farmer' || activeTab === 'withdrawal-requests' || activeTab === 'farmer-profile') && (
+          <FarmerPortal
+            intakes={intakes}
             receipts={receipts}
             farmersList={initialFarmers}
             onApplyCollateral={handleApplyCollateral}
             language={language}
+            role={role}
+            activeTab={activeTab}
             onAmendReceipt={(receiptId, newQty, bags, val) => {
               setReceipts(prev => prev.map(wr => {
                 if (wr.id === receiptId) {
@@ -480,8 +791,8 @@ export default function App() {
         )}
 
         {activeTab === 'aggregator' && (
-          <AggregatorView 
-            intakes={intakes} 
+          <AggregatorView
+            intakes={intakes}
             onReserveLot={handleReserveLot}
             onAddDispatch={handleAddDispatch}
             language={language}
@@ -496,18 +807,19 @@ export default function App() {
         )}
 
         {activeTab === 'warehouses' && (
-          <Warehouses 
-            intakes={intakes} 
+          <Warehouses
+            intakes={intakes}
             language={language}
           />
         )}
 
         {activeTab === 'reports' && (
-          <Reports 
-            intakes={intakes} 
-            receipts={receipts} 
+          <Reports
+            intakes={intakes}
+            receipts={receipts}
             activities={activities}
             language={language}
+            role={role}
           />
         )}
 
@@ -535,11 +847,11 @@ export default function App() {
                     The following lots require processing to prevent spoilages:
                   </div>
                   {highMoistureLots.map(lot => (
-                    <div 
-                      key={lot.id} 
-                      style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
+                    <div
+                      key={lot.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
                         justifyContent: 'space-between',
                         padding: '10px 12px',
                         background: 'var(--amber-light)',
@@ -549,12 +861,12 @@ export default function App() {
                       }}
                     >
                       <div>
-                        <strong>{lot.id}</strong> ({lot.commodity})<br/>
+                        <strong>{lot.id}</strong> ({lot.commodity})<br />
                         <span style={{ fontSize: '11.5px', color: 'var(--text3)' }}>Location: {lot.warehouse} ({lot.zone})</span>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <span style={{ color: 'var(--red)', fontWeight: 'bold' }}>{lot.moisture}% moisture</span>
-                        <div 
+                        <div
                           style={{ fontSize: '11px', color: 'var(--green)', cursor: 'pointer', textDecoration: 'underline', marginTop: '2px' }}
                           onClick={() => {
                             setActiveTab('grading');
