@@ -15,13 +15,17 @@ def list_items(skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500)
     q = db.query(Farmer)
     if fpo_id is not None:
         q = q.filter(Farmer.fpo_id == fpo_id)
-    return q.offset(skip).limit(limit).all()
+    items = q.offset(skip).limit(limit).all()
+    for item in items:
+        item.total_deposit_kg = float(sum(lot.quantity_kg for lot in item.commodity_lots))
+    return items
 
 @router.get("/{item_id}", response_model=FarmerResponse)
 def get_item(item_id: int, db: Session = Depends(get_db)):
     item = db.query(Farmer).filter(Farmer.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
+    item.total_deposit_kg = float(sum(lot.quantity_kg for lot in item.commodity_lots))
     return item
 
 @router.post("/", response_model=FarmerResponse, status_code=status.HTTP_201_CREATED)

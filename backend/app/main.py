@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import traceback
 
 from app.routes.fpo_routes import router as fpo_router
 from app.routes.warehouse_routes import router as warehouse_router
@@ -40,6 +42,15 @@ app.include_router(dispatch_note_router)
 app.include_router(purchase_order_router)
 app.include_router(activity_log_router)
 app.include_router(dashboard_router)
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    tb = traceback.format_exc()
+    print("GLOBAL EXCEPTION:", tb)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc), "traceback": tb.split("\n")}
+    )
 
 @app.get("/")
 def root():

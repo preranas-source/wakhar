@@ -5,5 +5,17 @@
     "frontend",
     "mobile",
     "shared"
-  ]
+  ],
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "ajv": "^8.20.0",
+    "expo-router": "~6.0.24",
+    "inline-style-prefixer": "*",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native-web": "^0.21.0"
+  },
+  "dependencies": {
+    "react-native-worklets": "0.5.1"
+  }
 }

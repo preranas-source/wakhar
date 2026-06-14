@@ -22,6 +22,7 @@ class DispatchTimelineEventResponse(DispatchTimelineEventBase):
 class DispatchNoteBase(BaseModel):
     dn_code: str
     lot_id: int
+    dispatch_quantity_kg: float
     commodity_desc: str
     quantity_desc: str
     destination: str

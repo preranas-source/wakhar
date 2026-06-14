@@ -22,8 +22,10 @@ def list_items(
     return q.offset(skip).limit(limit).all()
 
 @router.post("/", response_model=ActivityLogResponse, status_code=status.HTTP_201_CREATED)
-def create_item(data: ActivityLogCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff', 'aggregator']))):
+def create_item(data: ActivityLogCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff', 'aggregator', 'farmer']))):
     item = ActivityLog(**data.model_dump())
+    if item.user_id is None:
+        item.user_id = current_user.id
     db.add(item)
     db.commit()
     db.refresh(item)

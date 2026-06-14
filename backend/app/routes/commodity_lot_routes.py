@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from datetime import datetime, timezone
 
 from app.dependencies import get_current_user, RoleChecker
 from app.models.user import User
 from app.database import get_db
-from app.models import CommodityLot
+from app.models import CommodityLot, ActivityLog, Warehouse, StockMovement
 from app.schemas.commodity_lot import CommodityLotCreate, CommodityLotResponse
+import uuid
 
 router = APIRouter(prefix="/api/lots", tags=["Commodity Lots"], dependencies=[Depends(get_current_user)])
 
@@ -41,6 +43,36 @@ def create_item(data: CommodityLotCreate, db: Session = Depends(get_db), current
     db.add(item)
     db.commit()
     db.refresh(item)
+    
+    # Update Warehouse Capacity
+    warehouse = db.query(Warehouse).filter(Warehouse.id == item.warehouse_id).first()
+    if warehouse:
+        warehouse.current_stock_mt = float(warehouse.current_stock_mt) + (float(item.quantity_kg) / 1000.0)
+        db.add(warehouse)
+
+    # Create Stock Movement
+    movement = StockMovement(
+        movement_code=f"MOV-{uuid.uuid4().hex[:8].upper()}",
+        type="intake",
+        lot_id=item.id,
+        to_warehouse_id=item.warehouse_id,
+        quantity_kg=item.quantity_kg,
+        performed_by_id=current_user.id,
+        movement_date=datetime.now(timezone.utc),
+        remarks="Initial Intake"
+    )
+    db.add(movement)
+    
+    # Create Activity Log
+    log = ActivityLog(
+        user_id=current_user.id,
+        type="intake",
+        message=f"New intake created: Lot {item.lot_code}",
+        reference=f"Lot ID: {item.id}"
+    )
+    db.add(log)
+    db.commit()
+    
     return item
 
 @router.put("/{item_id}", response_model=CommodityLotResponse)

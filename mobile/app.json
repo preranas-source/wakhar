@@ -34,10 +34,7 @@
             "imageWidth": 76
           }
         }
-      ],
-      "expo-sqlite",
-      "expo-sharing",
-      "expo-localization"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

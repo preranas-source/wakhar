@@ -13,12 +13,15 @@ router = APIRouter(prefix="/api/warehouse-receipts", tags=["Warehouse Receipts"]
 @router.get("/", response_model=List[WarehouseReceiptResponse])
 def list_items(
     skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500),
-    farmer_id: Optional[int] = None, receipt_status: Optional[str] = Query(None, alias="status"),
+    farmer_id: Optional[int] = None, lot_id: Optional[int] = None,
+    receipt_status: Optional[str] = Query(None, alias="status"),
     db: Session = Depends(get_db)
 ):
     q = db.query(WarehouseReceipt)
     if farmer_id is not None:
         q = q.filter(WarehouseReceipt.farmer_id == farmer_id)
+    if lot_id is not None:
+        q = q.filter(WarehouseReceipt.lot_id == lot_id)
     if receipt_status is not None:
         q = q.filter(WarehouseReceipt.status == receipt_status)
     return q.offset(skip).limit(limit).all()
@@ -30,8 +33,18 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Not found")
     return item
 
+from app.models import WarehouseReceipt, CommodityLot, Commodity
+
 @router.post("/", response_model=WarehouseReceiptResponse, status_code=status.HTTP_201_CREATED)
-def create_item(data: WarehouseReceiptCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager']))):
+def create_item(data: WarehouseReceiptCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff']))):
+    # Fetch lot and commodity to calculate dynamic valuation
+    lot = db.query(CommodityLot).filter(CommodityLot.id == data.lot_id).first()
+    if lot:
+        commodity = db.query(Commodity).filter(Commodity.id == lot.commodity_id).first()
+        if commodity:
+            # Valuation = quantity_kg * base_rate
+            data.valuation = float(lot.quantity_kg) * float(commodity.base_rate)
+            
     item = WarehouseReceipt(**data.model_dump())
     db.add(item)
     db.commit()
@@ -39,7 +52,7 @@ def create_item(data: WarehouseReceiptCreate, db: Session = Depends(get_db), cur
     return item
 
 @router.put("/{item_id}", response_model=WarehouseReceiptResponse)
-def update_item(item_id: int, data: WarehouseReceiptCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager']))):
+def update_item(item_id: int, data: WarehouseReceiptCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff']))):
     item = db.query(WarehouseReceipt).filter(WarehouseReceipt.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Not found")

@@ -1,7 +1,7 @@
 """Dispatch Note model + Timeline Events — outbound logistics with Fleetbase/Traccar."""
 
 import enum
-from sqlalchemy import Column, Integer, String, Boolean, Enum, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, Enum, DateTime, ForeignKey, Numeric
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 
@@ -23,6 +23,7 @@ class DispatchNote(Base, TimestampMixin):
 
     lot_id = Column(Integer, ForeignKey("commodity_lots.id"), nullable=False)
 
+    dispatch_quantity_kg = Column(Numeric(12, 2), nullable=False)
     commodity_desc = Column(String(200), nullable=False)  # "Soybean (JS-335)"
     quantity_desc = Column(String(50), nullable=False)  # "12 MT"
     destination = Column(String(200), nullable=False)  # "Satara Aggregator"

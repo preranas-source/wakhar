@@ -191,49 +191,9 @@ def seed():
         session.flush()
 
         # ──────────────────────────────────────────
-        # 8. Dispatch Notes (matching initialDispatches from App.jsx)
+        # 8. Dispatch Notes (removed demo dispatches)
         # ──────────────────────────────────────────
-        dn1 = DispatchNote(
-            dn_code="DN-0082", lot_id=lot3.id,
-            commodity_desc="Soybean (JS-335)", quantity_desc="12 MT",
-            destination="Satara Aggregator", vehicle_reg="MH-11-AB-4421",
-            status=DispatchStatus.in_transit,
-            dispatch_date=datetime(2026, 5, 30, 9, 15, tzinfo=timezone.utc),
-        )
-        dn2 = DispatchNote(
-            dn_code="DN-0081", lot_id=lot2.id,
-            commodity_desc="Wheat (Lokwan)", quantity_desc="8 MT",
-            destination="Phaltan FPO Warehouse", vehicle_reg="MH-12-PQ-9080",
-            status=DispatchStatus.delivered,
-            dispatch_date=datetime(2026, 5, 29, 8, 0, tzinfo=timezone.utc),
-            delivery_date=datetime(2026, 5, 29, 16, 30, tzinfo=timezone.utc),
-        )
-        session.add_all([dn1, dn2])
-        session.flush()
-
-        # Timeline events for DN-0082
-        for i, (title, sub, done, active) in enumerate([
-            ("Dispatch Note Created", "Today, 9:15 AM", True, False),
-            ("Weigh Bridge Gate-out weight certified", "Today, 10:00 AM", True, False),
-            ("NIC e-Way Bill generated & synchronized", "Today, 10:12 AM", True, False),
-            ("Delivery e-POD check in-transit", "Estimated delivery 6:00 PM", False, True),
-        ], start=1):
-            session.add(DispatchTimelineEvent(
-                dispatch_note_id=dn1.id, title=title, subtitle=sub,
-                is_done=done, is_active=active, event_order=i,
-            ))
-
-        # Timeline events for DN-0081
-        for i, (title, sub) in enumerate([
-            ("Dispatch Note Created", "Yesterday, 8:00 AM"),
-            ("Weigh Bridge Gate-out weight certified", "Yesterday, 8:45 AM"),
-            ("NIC e-Way Bill generated & synchronized", "Yesterday, 9:00 AM"),
-            ("Delivery e-POD completed & signed", "Yesterday, 4:30 PM"),
-        ], start=1):
-            session.add(DispatchTimelineEvent(
-                dispatch_note_id=dn2.id, title=title, subtitle=sub,
-                is_done=True, is_active=False, event_order=i,
-            ))
+        pass
 
         # ──────────────────────────────────────────
         # 9. Activity Logs (matching initialActivities from App.jsx)
