@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import traceback
 
+from app.routes.auth import router as auth_router
 from app.routes.fpo_routes import router as fpo_router
 from app.routes.warehouse_routes import router as warehouse_router
 from app.routes.user_routes import router as user_router
@@ -16,7 +17,6 @@ from app.routes.dispatch_note_routes import router as dispatch_note_router
 from app.routes.purchase_order_routes import router as purchase_order_router
 from app.routes.activity_log_routes import router as activity_log_router
 from app.routes.dashboard_routes import router as dashboard_router
-from app.routes.auth_routes import router as auth_router
 
 app = FastAPI(title="Wakhar WMS API", version="1.0.0")
 

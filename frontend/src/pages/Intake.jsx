@@ -17,6 +17,10 @@ export default function Intake({
   const [intakeMode, setIntakeMode] = useState('walk-in');
   const [selectedBookingId, setSelectedBookingId] = useState('');
 
+  // QR Scanner Modal Mockup State
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+  const [qrScanningStatus, setQrScanningStatus] = useState('Position QR Code inside the camera guide...');
+
   // Wizard States
   const [selectedFarmer, setSelectedFarmer] = useState(farmersList[0] || {});
   const [warehouse, setWarehouse] = useState('Wai FPO Warehouse');
@@ -114,6 +118,47 @@ export default function Intake({
     if (wizardStep > 1) {
       setWizardStep(prev => prev - 1);
     }
+  };
+
+  // Simulate scanning QR Code
+  const handleQrScanTrigger = () => {
+    setIsQrScannerOpen(true);
+    setQrScanningStatus('Accessing camera feed...');
+    
+    // Phase 1: Accessing camera
+    setTimeout(() => {
+      setQrScanningStatus('Camera active. Align farmer booking barcode or QR...');
+    }, 1000);
+
+    // Phase 2: Detecting QR Code
+    setTimeout(() => {
+      setQrScanningStatus('Detecting QR matrix. Hold still...');
+    }, 2200);
+
+    // Phase 3: Decrypting & Populating
+    setTimeout(() => {
+      // Pick a random mock booking
+      const randomBk = mockBookings[Math.floor(Math.random() * mockBookings.length)];
+      setIntakeMode('pre-registered');
+      setSelectedBookingId(randomBk.id);
+      
+      // Auto-fill wizard parameters
+      const farmerObj = farmersList.find(f => f.id === randomBk.farmerId) || { id: randomBk.farmerId, name: randomBk.farmerName, phone: '+91 94210 77889', aadhaar: '3210-6789-0123' };
+      setSelectedFarmer(farmerObj);
+      setCommodity(randomBk.commodity);
+      setVariety(randomBk.variety);
+      setQuantity(randomBk.quantity);
+      setBags(randomBk.bags);
+      setFarmGPS(randomBk.gps);
+
+      setQrScanningStatus('Success! Decrypted booking data. Closing scanner...');
+      
+      // Auto beep & close
+      setTimeout(() => {
+        setIsQrScannerOpen(false);
+        setWizardStep(2); // Jump directly to step 2 after scan success
+      }, 800);
+    }, 3800);
   };
 
   // Filtered Intakes
@@ -260,40 +305,53 @@ export default function Intake({
                     <div className="section-title">Select Farmer Profile</div>
                     <div className="section-sub">Step 1 of 4: Search and link depositor</div>
                   </div>
-                  {/* Intake Mode Switch */}
-                  <div style={{ display: 'flex', gap: '8px', background: 'var(--surface2)', padding: '4px', borderRadius: '8px' }}>
+                  
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {/* QR Scan Button */}
                     <button 
                       type="button" 
-                      onClick={() => setIntakeMode('walk-in')}
-                      style={{ 
-                        border: 'none', 
-                        padding: '6px 12px', 
-                        borderRadius: '6px', 
-                        fontSize: '12px', 
-                        fontWeight: '500', 
-                        cursor: 'pointer',
-                        background: intakeMode === 'walk-in' ? '#fff' : 'transparent',
-                        boxShadow: intakeMode === 'walk-in' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                      }}
+                      className="btn btn-outline" 
+                      onClick={handleQrScanTrigger}
+                      style={{ padding: '6px 12px', fontSize: '12.5px', background: 'var(--surface)', borderColor: 'var(--green)', color: 'var(--green)', fontWeight: '600', gap: '5px' }}
                     >
-                      Walk-In
+                      📷 Scan Booking QR
                     </button>
-                    <button 
-                      type="button" 
-                      onClick={() => setIntakeMode('pre-registered')}
-                      style={{ 
-                        border: 'none', 
-                        padding: '6px 12px', 
-                        borderRadius: '6px', 
-                        fontSize: '12px', 
-                        fontWeight: '500', 
-                        cursor: 'pointer',
-                        background: intakeMode === 'pre-registered' ? '#fff' : 'transparent',
-                        boxShadow: intakeMode === 'pre-registered' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                      }}
-                    >
-                      Pre-Registered Booking
-                    </button>
+
+                    {/* Intake Mode Switch */}
+                    <div style={{ display: 'flex', gap: '4px', background: 'var(--surface2)', padding: '4px', borderRadius: '8px' }}>
+                      <button 
+                        type="button" 
+                        onClick={() => setIntakeMode('walk-in')}
+                        style={{ 
+                          border: 'none', 
+                          padding: '6px 12px', 
+                          borderRadius: '6px', 
+                          fontSize: '12px', 
+                          fontWeight: '500', 
+                          cursor: 'pointer',
+                          background: intakeMode === 'walk-in' ? '#fff' : 'transparent',
+                          boxShadow: intakeMode === 'walk-in' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                        }}
+                      >
+                        Walk-In
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => setIntakeMode('pre-registered')}
+                        style={{ 
+                          border: 'none', 
+                          padding: '6px 12px', 
+                          borderRadius: '6px', 
+                          fontSize: '12px', 
+                          fontWeight: '500', 
+                          cursor: 'pointer',
+                          background: intakeMode === 'pre-registered' ? '#fff' : 'transparent',
+                          boxShadow: intakeMode === 'pre-registered' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                        }}
+                      >
+                        Pre-Registered Booking
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -540,6 +598,93 @@ export default function Intake({
           </div>
         </>
       )}
+
+      {/* 2. QR SCANNER MOCKUP OVERLAY MODAL */}
+      {isQrScannerOpen && (
+        <div className="modal-overlay" onClick={() => setIsQrScannerOpen(false)}>
+          <div 
+            className="modal-container" 
+            onClick={(e) => e.stopPropagation()} 
+            style={{ 
+              maxWidth: '440px', 
+              background: '#1a1a1a', 
+              color: '#fff', 
+              textAlign: 'center', 
+              padding: '24px', 
+              borderRadius: '16px' 
+            }}
+          >
+            <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>📷 QR Intake Scanner</span>
+              <button onClick={() => setIsQrScannerOpen(false)} style={{ border: 'none', background: 'transparent', color: '#fff', fontSize: '20px', cursor: 'pointer' }}>×</button>
+            </div>
+
+            {/* Scanning Guide Box */}
+            <div 
+              style={{ 
+                width: '240px', 
+                height: '240px', 
+                margin: '20px auto', 
+                border: '4px solid var(--green)', 
+                borderRadius: '12px', 
+                position: 'relative', 
+                background: 'rgba(255,255,255,0.03)',
+                boxShadow: '0 0 20px rgba(45,106,79,0.3)',
+                overflow: 'hidden'
+              }}
+            >
+              {/* Laser animation */}
+              <div 
+                style={{ 
+                  position: 'absolute', 
+                  width: '100%', 
+                  height: '3px', 
+                  background: '#2D6A4F', 
+                  boxShadow: '0 0 8px #2D6A4F',
+                  top: '10%',
+                  left: 0,
+                  animation: 'scan-laser 2.2s infinite ease-in-out'
+                }}
+              />
+              
+              {/* Corner brackets representation */}
+              <div style={{ position: 'absolute', top: '20px', left: '20px', right: '20px', bottom: '20px', border: '1px dashed rgba(255,255,255,0.2)' }} />
+              
+              {/* Mock QR matrix image in background */}
+              <div style={{ width: '120px', height: '120px', background: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23ffffff\' stroke-width=\'2\'%3E%3Crect x=\'3\' y=\'3\' width=\'6\' height=\'6\'/%3E%3Crect x=\'15\' y=\'3\' width=\'6\' height=\'6\'/%3E%3Crect x=\'3\' y=\'15\' width=\'6\' height=\'6\'/%3E%3Cpath d=\'M9 9h6v6H9z\'/%3E%3C/svg%3E") no-repeat center', backgroundSize: 'contain', opacity: 0.25, position: 'absolute', top: '60px', left: '60px' }} />
+            </div>
+
+            <div style={{ fontSize: '13px', color: '#ccc', margin: '12px 0 20px' }}>
+              {qrScanningStatus}
+            </div>
+
+            <button 
+              type="button" 
+              className="btn btn-primary" 
+              style={{ width: '100%', justifyContent: 'center', background: 'var(--green)', borderColor: 'var(--green)' }}
+              onClick={() => {
+                // Simulate manual force scan
+                setQrScanningStatus('Verifying security checksum...');
+                setTimeout(() => {
+                  setIsQrScannerOpen(false);
+                  setWizardStep(2);
+                }, 600);
+              }}
+            >
+              Simulate Scan Beep
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Embedded CSS Animation for Scanner Laser */}
+      <style>{`
+        @keyframes scan-laser {
+          0% { top: 10%; }
+          50% { top: 90%; }
+          100% { top: 10%; }
+        }
+      `}</style>
     </div>
   );
 }

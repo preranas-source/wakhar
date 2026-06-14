@@ -9,6 +9,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 
+from app.routes.auth import get_password_hash
 from app.models import (
     Base, User, UserRole, FPO, Warehouse, WarehouseType,
     Farmer, Commodity, CommodityLot, GradeEnum, LotStatus,
@@ -17,7 +18,6 @@ from app.models import (
     DispatchNote, DispatchStatus, DispatchTimelineEvent,
     PurchaseOrder, POStatus, PaymentStatus, ActivityLog, ActivityType,
 )
-from app.utils.auth import hash_password
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://wakhar:wakhar123@localhost/wakharwms")
@@ -28,14 +28,15 @@ engine = create_engine(DATABASE_URL, echo=False)
 def seed():
     with Session(engine) as session:
         # ──────────────────────────────────────────
-        # 0. Clean Existing Data
+        # 0. Clear Existing Data
         # ──────────────────────────────────────────
-        print("🧹 Cleaning existing database data...")
+        print("🧹 Clearing existing database data...")
         session.execute(text("SET FOREIGN_KEY_CHECKS = 0;"))
         for table in reversed(Base.metadata.sorted_tables):
             session.execute(table.delete())
         session.execute(text("SET FOREIGN_KEY_CHECKS = 1;"))
         session.commit()
+
         # ──────────────────────────────────────────
         # 1. FPOs
         # ──────────────────────────────────────────
@@ -64,33 +65,40 @@ def seed():
         # ──────────────────────────────────────────
         # 3. Users
         # ──────────────────────────────────────────
-        hashed_password = hash_password("123456")
+        # Hash "123456" for secure login
+        pwd_hash = get_password_hash("123456")
+        
         user_manager = User(
             email="rajesh@wakhar.in", phone="+919876500001",
-            password_hash=hashed_password, full_name="Rajesh Bhosale",
+            password_hash=pwd_hash, full_name="Rajesh Bhosale",
             role=UserRole.fpo_manager, initials="RB", fpo_id=fpo_wai.id,
         )
         user_admin = User(
             email="admin@wakhar.in", phone="+919876500000",
-            password_hash=hashed_password, full_name="System Admin",
+            password_hash=pwd_hash, full_name="System Admin",
             role=UserRole.admin, initials="SA",
         )
         user_staff = User(
             email="staff@wakhar.in", phone="+919876500002",
-            password_hash=hashed_password, full_name="Anil Gaikwad",
+            password_hash=pwd_hash, full_name="Anil Gaikwad",
             role=UserRole.fpo_staff, initials="AG", fpo_id=fpo_wai.id,
         )
         user_agg = User(
             email="agg@wakhar.in", phone="+919876500003",
-            password_hash=hashed_password, full_name="Mahesh Kulkarni",
+            password_hash=pwd_hash, full_name="Mahesh Kulkarni",
             role=UserRole.aggregator, initials="MK", fpo_id=fpo_aggregator.id,
         )
         user_market = User(
             email="buyer@raigadmart.in", phone="+919876500004",
-            password_hash=hashed_password, full_name="Raigad Mart Buyer",
+            password_hash=pwd_hash, full_name="Raigad Mart Buyer",
             role=UserRole.market_partner, initials="RM",
         )
-        session.add_all([user_manager, user_admin, user_staff, user_agg, user_market])
+        user_farmer = User(
+            email="suresh@wakhar.in", phone="+919876543210",
+            password_hash=pwd_hash, full_name="Suresh Patil",
+            role=UserRole.farmer, initials="SP",
+        )
+        session.add_all([user_manager, user_admin, user_staff, user_agg, user_market, user_farmer])
         session.flush()
 
         # ──────────────────────────────────────────
@@ -107,7 +115,7 @@ def seed():
         # ──────────────────────────────────────────
         # 5. Farmers (matching initialFarmers from App.jsx)
         # ──────────────────────────────────────────
-        fm1 = Farmer(farmer_code="FM-00412", name="Suresh Patil", phone="+91 98765 43210", aadhaar="4532-8901-4821", village="Wai", fpo_id=fpo_wai.id)
+        fm1 = Farmer(farmer_code="FM-00412", name="Suresh Patil", phone="+919876543210", aadhaar="4532-8901-4821", village="Wai", fpo_id=fpo_wai.id, user_id=user_farmer.id)
         fm2 = Farmer(farmer_code="FM-00389", name="Anita Shinde", phone="+91-99230-44556", aadhaar="7891-2345-6789", village="Phaltan", fpo_id=fpo_phaltan.id)
         fm3 = Farmer(farmer_code="FM-00301", name="Ramesh Jadhav", phone="+91-94210-77889", aadhaar="3210-6789-0123", village="Wai", fpo_id=fpo_wai.id)
         fm4 = Farmer(farmer_code="FM-00451", name="Priya More", phone="+91-91300-22334", aadhaar="6789-0123-4567", village="Baramati", fpo_id=fpo_baramati.id)

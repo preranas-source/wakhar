@@ -1,17 +1,30 @@
 import { useState } from 'react';
 import { getTranslation } from '@wakhar/shared';
 
-export default function Inventory({ intakes, onDispatchLot, searchQuery, language = 'en' }) {
+export default function Inventory({ intakes, receipts = [], dispatches = [], onDispatchLot, searchQuery, language = 'en' }) {
   const t = (key) => getTranslation(key, language);
 
   const [activeTab, setActiveTab] = useState('All lots');
   const [selectedLot, setSelectedLot] = useState(null);
   
+  // New Filters State
+  const [selectedZone, setSelectedZone] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+
   // FIFO / FEFO Rule Enforcement
   const [dispatchRule, setDispatchRule] = useState('FIFO'); // 'FIFO' or 'FEFO'
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [violationDetails, setViolationDetails] = useState(null);
   const [targetDispatchLot, setTargetDispatchLot] = useState(null);
+
+  // Commodity category helper
+  const getCommodityCategory = (commodity = '') => {
+    const crop = commodity.toLowerCase();
+    if (crop.includes('rice') || crop.includes('wheat')) return 'Grains';
+    if (crop.includes('soybean') || crop.includes('groundnut')) return 'Oilseeds';
+    if (crop.includes('onion')) return 'Vegetables';
+    return 'Other';
+  };
 
   // Stats
   const totalInStorage = intakes
@@ -22,7 +35,7 @@ export default function Inventory({ intakes, onDispatchLot, searchQuery, languag
     .filter(lot => lot.status === 'Reserved')
     .reduce((sum, lot) => sum + Number(lot.quantity || 0), 0);
 
-  // Expiring lots simulator (lots with moisture > 14% have expiring warning)
+  // Expiring lots simulator (lots with moisture > 15% have expiring warning)
   const expiringStock = intakes
     .filter(lot => lot.moisture > 15 && lot.status === 'Available')
     .reduce((sum, lot) => sum + Number(lot.quantity || 0), 0);
@@ -44,6 +57,22 @@ export default function Inventory({ intakes, onDispatchLot, searchQuery, languag
         if (!matchesQuery) return false;
       }
 
+      // Filter by Warehouse Zone
+      if (selectedZone !== 'All') {
+        // e.g. "Zone A — Rack 3" matches "Zone A"
+        if (!lot.zone.toLowerCase().includes(selectedZone.toLowerCase())) {
+          return false;
+        }
+      }
+
+      // Filter by Commodity Category
+      if (selectedCategory !== 'All') {
+        const cat = getCommodityCategory(lot.commodity);
+        if (cat !== selectedCategory) {
+          return false;
+        }
+      }
+
       // Filter by tab selection
       if (activeTab === 'All lots') return true;
       if (activeTab === 'Grade A') return lot.grade === 'Grade A';
@@ -63,7 +92,6 @@ export default function Inventory({ intakes, onDispatchLot, searchQuery, languag
     );
 
     if (dispatchRule === 'FIFO') {
-      // Oldest deposit has a lower LOT number (e.g. LOT-2026-087 is older than LOT-2026-091)
       const olderLots = activeSameCommodity.filter(lot => {
         const targetNum = parseInt(targetLot.id.split('-').pop() || '0');
         const lotNum = parseInt(lot.id.split('-').pop() || '0');
@@ -78,7 +106,6 @@ export default function Inventory({ intakes, onDispatchLot, searchQuery, languag
         return { type: 'FIFO', lot: olderLots[0] };
       }
     } else if (dispatchRule === 'FEFO') {
-      // FEFO targets the highest moisture lot in priority
       const higherMoistureLots = activeSameCommodity.filter(lot => lot.moisture > targetLot.moisture && lot.moisture > 14);
       if (higherMoistureLots.length > 0) {
         higherMoistureLots.sort((a, b) => b.moisture - a.moisture);
@@ -106,36 +133,64 @@ export default function Inventory({ intakes, onDispatchLot, searchQuery, languag
 
   return (
     <div className="page active" id="page-inventory">
-      <div style={{ display: 'flex', alignItems: 'center', justifyScontent: 'space-between', marginBottom: '20px', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <div className="section-title" style={{ fontSize: '16px' }}>{t('Inventory')} Ledger</div>
-          <div className="section-sub">Real-time shelf tracking · FIFO / FEFO rules matching</div>
+          <div className="section-sub">Real-time stock tracking by zones, categories & FIFO policy checks</div>
         </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+
+        {/* Toolbar Controls */}
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          
+          {/* Warehouse Zones Filter */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text2)' }}>Zone:</span>
+            <select 
+              value={selectedZone} 
+              onChange={(e) => setSelectedZone(e.target.value)}
+              className="form-select"
+              style={{ padding: '4px 8px', fontSize: '12px', background: '#fff', width: '110px' }}
+            >
+              <option value="All">All Zones</option>
+              <option value="Zone A">Zone A</option>
+              <option value="Zone B">Zone B</option>
+              <option value="Zone C">Zone C</option>
+            </select>
+          </div>
+
+          {/* Commodity Categories Filter */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text2)' }}>Category:</span>
+            <select 
+              value={selectedCategory} 
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="form-select"
+              style={{ padding: '4px 8px', fontSize: '12px', background: '#fff', width: '120px' }}
+            >
+              <option value="All">All Categories</option>
+              <option value="Grains">Grains (Wheat/Rice)</option>
+              <option value="Oilseeds">Oilseeds (Soy/Ground)</option>
+              <option value="Vegetables">Vegetables (Onion)</option>
+            </select>
+          </div>
+
           {/* Active Dispatch Rule Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text2)' }}>Dispatch Rule:</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text2)' }}>Rule:</span>
             <select 
               value={dispatchRule} 
               onChange={(e) => setDispatchRule(e.target.value)}
-              style={{
-                background: '#fff',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                padding: '4px 8px',
-                fontSize: '12px',
-                fontFamily: 'inherit',
-                color: 'var(--text)',
-                cursor: 'pointer'
-              }}
+              className="form-select"
+              style={{ padding: '4px 8px', fontSize: '12px', background: '#fff', width: '140px' }}
             >
               <option value="FIFO">FIFO (Oldest Deposit)</option>
-              <option value="FEFO">FEFO (Highest Risk / Moisture)</option>
+              <option value="FEFO">FEFO (Highest Risk)</option>
             </select>
           </div>
           
           <button 
             className="btn btn-outline"
+            style={{ background: '#fff' }}
             onClick={() => {
               const csvData = intakes.map(l => `${l.id},${l.farmerName},${l.commodity},${l.quantity},${l.grade},${l.status}`).join('\n');
               const blob = new Blob([`LotID,Farmer,Commodity,Qty(kg),Grade,Status\n${csvData}`], { type: 'text/csv' });
@@ -195,6 +250,7 @@ export default function Inventory({ intakes, onDispatchLot, searchQuery, languag
                 <tr>
                   <th>{t('Lot ID')}</th>
                   <th>{t('Commodity')} / {t('Variety')}</th>
+                  <th>Category</th>
                   <th>{t('Quantity')}</th>
                   <th>{t('Grade')}</th>
                   <th>{t('Moisture')} %</th>
@@ -205,8 +261,8 @@ export default function Inventory({ intakes, onDispatchLot, searchQuery, languag
               <tbody>
                 {filteredLots.length === 0 ? (
                   <tr>
-                    <td colSpan="7" style={{ textAlign: 'center', padding: '24px', color: 'var(--text3)' }}>
-                      No inventory lots match this search filter.
+                    <td colSpan="8" style={{ textAlign: 'center', padding: '24px', color: 'var(--text3)' }}>
+                      No inventory lots match the search and filtering parameters.
                     </td>
                   </tr>
                 ) : (
@@ -225,6 +281,7 @@ export default function Inventory({ intakes, onDispatchLot, searchQuery, languag
                         {t(lot.commodity)}
                         <div className="td-secondary">{lot.variety}</div>
                       </td>
+                      <td>{getCommodityCategory(lot.commodity)}</td>
                       <td>{lot.quantity.toLocaleString()} kg</td>
                       <td>
                         <span className={`badge ${lot.gradeClass}`}>{lot.grade}</span>
@@ -262,35 +319,100 @@ export default function Inventory({ intakes, onDispatchLot, searchQuery, languag
                 </div>
                 <hr style={{ border: 'none', borderBottom: '1px solid var(--border)' }} />
                 
-                <div>
-                  <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>Depositor Farmer</div>
-                  <div style={{ fontSize: '13.5px', fontWeight: '500' }}>{selectedLot.farmerName} ({selectedLot.farmerId})</div>
+                <div style={{ fontSize: '12.5px', fontWeight: 'bold', color: 'var(--green-mid)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span>📋</span> {t('Lot Batch Traceability Timeline')}
                 </div>
 
-                <div>
-                  <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>Storage Section</div>
-                  <div style={{ fontSize: '13.5px' }}>{selectedLot.warehouse} &mdash; {selectedLot.zone}</div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <div>
-                    <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>Weight (kg)</div>
-                    <div style={{ fontSize: '15px', fontWeight: 'bold' }}>{selectedLot.quantity.toLocaleString()}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>Moisture</div>
-                    <div style={{ fontSize: '15px', fontWeight: 'bold', color: selectedLot.moisture > 14 ? 'var(--amber)' : 'var(--green)' }}>
-                      {selectedLot.moisture}%
+                <div className="timeline" style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {/* Stage 1: Intake */}
+                  <div className="timeline-item" style={{ display: 'flex', gap: '12px' }}>
+                    <div className="timeline-dot done" style={{ width: '20px', height: '20px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--green)', color: '#fff', borderRadius: '50%', flexShrink: 0 }}>✓</div>
+                    <div className="tl-content" style={{ flex: 1 }}>
+                      <div className="tl-title" style={{ fontSize: '12.5px', fontWeight: 'bold' }}>{t('Intake Gate-In')}</div>
+                      <div className="tl-sub" style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '3px', lineHeight: '1.3' }}>
+                        Deposited: {selectedLot.date}<br/>
+                        Farmer: {selectedLot.farmerName} ({selectedLot.farmerId})<br/>
+                        Bags: {selectedLot.bags} ({selectedLot.quantity.toLocaleString()} kg)<br/>
+                        Origin: {selectedLot.gps || 'Wai farm'} <br/>
+                        <span style={{ color: 'var(--green)', fontWeight: '600' }}>Synced to ERPNext (STE-Submitted)</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div>
-                  <div style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: '600' }}>Status</div>
-                  <div style={{ marginTop: '4px' }}>
-                    <span className={`badge ${
-                      selectedLot.status === 'Available' ? 'badge-teal' : 'badge-blue'
-                    }`}>{t(selectedLot.status)}</span>
+                  {/* Stage 2: Quality */}
+                  <div className="timeline-item" style={{ display: 'flex', gap: '12px' }}>
+                    <div className={`timeline-dot ${selectedLot.grade !== 'QC Pending' ? 'done' : 'active'}`} style={{ width: '20px', height: '20px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: selectedLot.grade !== 'QC Pending' ? 'var(--green)' : 'var(--amber)', color: '#fff', borderRadius: '50%', flexShrink: 0 }}>
+                      {selectedLot.grade !== 'QC Pending' ? '✓' : '•'}
+                    </div>
+                    <div className="tl-content" style={{ flex: 1 }}>
+                      <div className="tl-title" style={{ fontSize: '12.5px', fontWeight: 'bold' }}>{t('Quality Grading')}</div>
+                      <div className="tl-sub" style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '3px', lineHeight: '1.3' }}>
+                        Moisture: {selectedLot.moisture}% (Impurity: 0.45%)<br/>
+                        Grade: {selectedLot.grade}<br/>
+                        Protein: {selectedLot.commodity === 'Wheat' ? '12.4%' : '11.5%'}<br/>
+                        Assayer: Govt Lab Officer
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Stage 3: WR */}
+                  {selectedLot.grade !== 'Rejected' && (
+                    <div className="timeline-item" style={{ display: 'flex', gap: '12px' }}>
+                      <div className={`timeline-dot ${receipts.find(r => r.lotId === selectedLot.id) ? 'done' : ''}`} style={{ width: '20px', height: '20px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: receipts.find(r => r.lotId === selectedLot.id) ? 'var(--green)' : '#ccc', color: '#fff', borderRadius: '50%', flexShrink: 0 }}>
+                        {receipts.find(r => r.lotId === selectedLot.id) ? '✓' : '•'}
+                      </div>
+                      <div className="tl-content" style={{ flex: 1 }}>
+                        <div className="tl-title" style={{ fontSize: '12.5px', fontWeight: 'bold' }}>{t('Warehouse Receipt')}</div>
+                        <div className="tl-sub" style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '3px', lineHeight: '1.3' }}>
+                          {(() => {
+                            const wr = receipts.find(r => r.lotId === selectedLot.id);
+                            if (wr) {
+                              return (
+                                <>
+                                  Ref: {wr.id}<br/>
+                                  Valuation: ₹{wr.value.toLocaleString()}<br/>
+                                  Lien status: <span style={{ color: wr.collateralStatus === 'Disbursed' ? 'var(--purple)' : 'inherit', fontWeight: 'bold' }}>{wr.collateralStatus}</span>
+                                  {wr.pledgeBank && ` (${wr.pledgeBank})`}
+                                </>
+                              );
+                            }
+                            return 'Awaiting WR authorization...';
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Stage 4: Outbound / Dispatch */}
+                  <div className="timeline-item" style={{ display: 'flex', gap: '12px' }}>
+                    <div className={`timeline-dot ${selectedLot.status === 'Reserved' || selectedLot.status === 'Returned' ? 'done' : ''}`} style={{ width: '20px', height: '20px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: selectedLot.status === 'Reserved' || selectedLot.status === 'Returned' ? 'var(--blue)' : '#ccc', color: '#fff', borderRadius: '50%', flexShrink: 0 }}>
+                      {selectedLot.status === 'Reserved' || selectedLot.status === 'Returned' ? '✓' : '•'}
+                    </div>
+                    <div className="tl-content" style={{ flex: 1 }}>
+                      <div className="tl-title" style={{ fontSize: '12.5px', fontWeight: 'bold' }}>{t('Fulfillment / Dispatch')}</div>
+                      <div className="tl-sub" style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '3px', lineHeight: '1.3' }}>
+                        {(() => {
+                          const disp = dispatches.find(d => d.lotId === selectedLot.id);
+                          if (disp) {
+                            return (
+                              <>
+                                Ref: {disp.id}<br/>
+                                Truck: {disp.vehicle}<br/>
+                                Destination: {disp.destination}<br/>
+                                Transit Status: <span style={{ fontWeight: '600' }}>{disp.status}</span>
+                              </>
+                            );
+                          }
+                          if (selectedLot.status === 'Reserved') {
+                            return 'Reserved for market Purchase Order (Awaiting dispatch gatepass)...';
+                          }
+                          if (selectedLot.status === 'Returned') {
+                            return 'Lot rejected: Returned to farmer due to high moisture.';
+                          }
+                          return 'Available in storage racks (FIFO dispatch queues).';
+                        })()}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -304,7 +426,7 @@ export default function Inventory({ intakes, onDispatchLot, searchQuery, languag
                       🚚 Initiate Outbound Dispatch
                     </button>
                   )}
-                  {selectedLot.moisture > 14 && (
+                  {selectedLot.moisture > 14 && selectedLot.status !== 'Returned' && (
                     <button 
                       className="btn btn-outline" 
                       onClick={() => alert(`Aeration scheduled for lot ${selectedLot.id}`)}

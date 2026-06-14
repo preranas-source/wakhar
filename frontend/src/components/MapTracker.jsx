@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { apiSim } from '@wakhar/shared';
 
 export default function MapTracker() {
   // Simulating coordinates traversing along paths
@@ -8,6 +9,12 @@ export default function MapTracker() {
   const [vehicle2, setVehicle2] = useState({ top: 62, left: 50, percent: 50 });
 
   useEffect(() => {
+    // Periodically fetch coordinates via Traccar simulator to populate integrations logs console
+    const traccarTimer = setInterval(() => {
+      apiSim.fetchTraccarPositions('MH-11-AB-4421');
+      apiSim.fetchTraccarPositions('MH-12-PQ-9080');
+    }, 8000);
+
     const interval = setInterval(() => {
       setVehicle1((prev) => {
         const nextPercent = prev.percent >= 100 ? 0 : prev.percent + 2;
@@ -28,7 +35,10 @@ export default function MapTracker() {
       });
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      clearInterval(traccarTimer);
+    };
   }, []);
 
   return (

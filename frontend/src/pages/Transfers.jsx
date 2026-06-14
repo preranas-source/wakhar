@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function Transfers({ intakes = [], onAddActivity }) {
+export default function Transfers({ intakes = [], onAddActivity, role }) {
   // 1. Seed transfers matching the screenshot
   const [transfers, setTransfers] = useState([
     { 
@@ -142,7 +142,7 @@ export default function Transfers({ intakes = [], onAddActivity }) {
       return t;
     }));
 
-    alert(`GRN approved and reconciled for ${activeTransfer.id}! Status is now GRN Done.`);
+    alert(`GRN approved and reconciled for ${activeTransfer.id}! Status updated to GRN Done.`);
 
     if (onAddActivity) {
       onAddActivity('qc', `Reconciliation — Approved GRN for Transfer <strong>${activeTransfer.id}</strong>. Received: ${recQty} kg (Variance: ${diff} kg). Reason: ${diff === 0 ? 'None' : varianceReason}.`);
@@ -170,7 +170,7 @@ export default function Transfers({ intakes = [], onAddActivity }) {
     ? ((currentVarianceVal / activeTransfer.quantity) * 100).toFixed(1)
     : '0.0';
 
-  // Check if there is any pending variance to display warning at the top (excluding approved)
+  // Check if there is any pending variance to display warning at the top
   const pendingVarianceTrf = transfers.find(t => t.status === 'GRN Pending' && t.variance !== 0);
 
   const formatTrfId = (id) => {
@@ -186,24 +186,33 @@ export default function Transfers({ intakes = [], onAddActivity }) {
     return id;
   };
 
+  const isBuyer = role === 'market_partner';
+
   return (
     <div className="page active" id="page-transfers" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       
       {/* Header section */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontFamily: 'var(--font-sans)', fontSize: '20px', fontWeight: '600', color: 'var(--text)' }}>FPO &rarr; Aggregator Transfer</div>
+          <div style={{ fontFamily: 'var(--font-sans)', fontSize: '20px', fontWeight: '600', color: 'var(--text)' }}>
+            {isBuyer ? 'Goods Receipt Note (GRN) Reconciliation' : 'FPO \u2192 Aggregator Transfer'}
+          </div>
           <div style={{ color: 'var(--text3)', fontSize: '13px', marginTop: '6px' }}>
-            Outbound dispatch from FPO · GRN at aggregator · Quantity reconciliation
+            {isBuyer 
+              ? 'Record goods receipt, verify weights, and flag variance reconciliation details' 
+              : 'Outbound dispatch from FPO · GRN at aggregator · Quantity reconciliation'}
           </div>
         </div>
-        <button 
-          className="btn btn-primary" 
-          style={{ background: '#1E4D36', borderColor: '#1E4D36' }}
-          onClick={() => alert('Inter-Warehouse transfer batch mode initialized.')}
-        >
-          + New Transfer
-        </button>
+        
+        {!isBuyer && (
+          <button 
+            className="btn btn-primary" 
+            style={{ background: '#1E4D36', borderColor: '#1E4D36' }}
+            onClick={() => alert('Inter-Warehouse transfer batch mode initialized.')}
+          >
+            + New Transfer
+          </button>
+        )}
       </div>
 
       {/* Warning Alert Banner */}
@@ -213,115 +222,145 @@ export default function Transfers({ intakes = [], onAddActivity }) {
           style={{ marginBottom: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }} 
           onClick={() => handleRowClick(pendingVarianceTrf)}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px' }}>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px' }}>
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
             <line x1="12" y1="9" x2="12" y2="13" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
-          <div style={{ flex: 1 }}>
-            <strong>Transfer {pendingVarianceTrf.id}</strong> arrived at Satara Aggregator — GRN pending. Variance: {pendingVarianceTrf.variance} kg. <span style={{ textDecoration: 'underline', fontWeight: 'bold' }}>Review & Approve</span>
+          <div style={{ flex: 1, fontSize: '12.5px' }}>
+            <strong>Transfer {pendingVarianceTrf.id}</strong> arrived at warehouse hub — GRN pending. Variance: {pendingVarianceTrf.variance} kg. <span style={{ textDecoration: 'underline', fontWeight: 'bold' }}>Review & Approve</span>
           </div>
         </div>
       )}
 
       {/* Two-Column split grid */}
-      <div className="transfers-split-layout">
+      <div className={isBuyer ? '' : 'transfers-split-layout'} style={{ display: 'grid', gridTemplateColumns: isBuyer ? '1fr' : '1fr 1fr', gap: '20px' }}>
         
-        {/* Left Column: Initiate FPO Transfer */}
-        <div className="card">
-          <div className="card-header">
-            <div className="section-title">Initiate FPO Transfer</div>
+        {/* Left Column: Initiate FPO Transfer (Hidden for Buyers, replaced with instructions card if Buyer) */}
+        {!isBuyer ? (
+          <div className="card">
+            <div className="card-header">
+              <div className="section-title">Initiate FPO Transfer</div>
+            </div>
+            <form onSubmit={handleCreateTransfer}>
+              <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', padding: '20px' }}>
+                <div className="form-group">
+                  <label className="form-label">Source FPO Warehouse</label>
+                  <select className="form-select" value={sourceFpo} onChange={(e) => setSourceFpo(e.target.value)}>
+                    <option value="Wai FPO Warehouse">Wai FPO Warehouse</option>
+                    <option value="Phaltan FPO Warehouse">Phaltan FPO Warehouse</option>
+                    <option value="Baramati FPO Warehouse">Baramati FPO Warehouse</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Destination Aggregator</label>
+                  <select className="form-select" value={destAggregator} onChange={(e) => setDestAggregator(e.target.value)}>
+                    <option value="Satara MahaFPC Aggregator">Satara MahaFPC Aggregator</option>
+                    <option value="Pune Central Aggregator Hub">Pune Central Aggregator Hub</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Commodity Lot(s)</label>
+                  <select className="form-select" value={selectedLotId} onChange={handleSelectLot}>
+                    <option value="">-- Choose Stock Lot --</option>
+                    {availableLots.map(lot => (
+                      <option key={lot.id} value={lot.id}>
+                        {lot.id} — {lot.commodity} ({lot.quantity.toLocaleString()} kg)
+                      </option>
+                    ))}
+                    {availableLots.length === 0 && (
+                      <option disabled>No available stock found. Deposit lots first!</option>
+                    )}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Transfer Quantity (kg)</label>
+                  <input 
+                    type="number"
+                    className="form-input"
+                    value={transferQty}
+                    onChange={(e) => setTransferQty(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Fleetbase Vehicle</label>
+                  <select className="form-select" value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)}>
+                    <option value="MH-11-AB-4421 (Auto-assign via Fleetbase)">MH-11-AB-4421 (Auto-assign)</option>
+                    <option value="MH-12-PQ-9080 (Manual Dispatch)">MH-12-PQ-9080 (Manual)</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Expected Dispatch Date</label>
+                  <input 
+                    type="date"
+                    className="form-input"
+                    value={expectedDate}
+                    onChange={(e) => setExpectedDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="form-footer" style={{ padding: '16px 20px', background: '#fff' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-outline"
+                  style={{ background: '#fff' }}
+                  onClick={() => alert('Draft saved successfully.')}
+                >
+                  Save Draft
+                </button>
+                <button type="submit" className="btn btn-primary" style={{ background: '#1E4D36', borderColor: '#1E4D36' }}>
+                  Create Transfer + Assign Vehicle
+                </button>
+              </div>
+            </form>
           </div>
-          <form onSubmit={handleCreateTransfer}>
-            <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', padding: '20px' }}>
-              <div className="form-group">
-                <label className="form-label">Source FPO Warehouse</label>
-                <select className="form-select" value={sourceFpo} onChange={(e) => setSourceFpo(e.target.value)}>
-                  <option value="Wai FPO Warehouse">Wai FPO Warehouse</option>
-                  <option value="Phaltan FPO Warehouse">Phaltan FPO Warehouse</option>
-                  <option value="Baramati FPO Warehouse">Baramati FPO Warehouse</option>
-                </select>
-              </div>
+        ) : null}
 
-              <div className="form-group">
-                <label className="form-label">Destination Aggregator</label>
-                <select className="form-select" value={destAggregator} onChange={(e) => setDestAggregator(e.target.value)}>
-                  <option value="Satara MahaFPC Aggregator">Satara MahaFPC Aggregator</option>
-                  <option value="Pune Central Aggregator Hub">Pune Central Aggregator Hub</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Commodity Lot(s)</label>
-                <select className="form-select" value={selectedLotId} onChange={handleSelectLot}>
-                  <option value="">-- Choose Stock Lot --</option>
-                  {availableLots.map(lot => (
-                    <option key={lot.id} value={lot.id}>
-                      {lot.id} — {lot.commodity} ({lot.quantity.toLocaleString()} kg)
-                    </option>
-                  ))}
-                  {availableLots.length === 0 && (
-                    <option disabled>No available stock found. Deposit lots first!</option>
-                  )}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Transfer Quantity (kg)</label>
-                <input 
-                  type="number"
-                  className="form-input"
-                  value={transferQty}
-                  onChange={(e) => setTransferQty(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Fleetbase Vehicle</label>
-                <select className="form-select" value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)}>
-                  <option value="MH-11-AB-4421 (Auto-assign via Fleetbase)">MH-11-AB-4421 (Auto-assign)</option>
-                  <option value="MH-12-PQ-9080 (Manual Dispatch)">MH-12-PQ-9080 (Manual)</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Expected Dispatch Date</label>
-                <input 
-                  type="date"
-                  className="form-input"
-                  value={expectedDate}
-                  onChange={(e) => setExpectedDate(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="form-footer" style={{ padding: '16px 20px', background: '#fff' }}>
-              <button 
-                type="button" 
-                className="btn btn-outline"
-                style={{ background: '#fff' }}
-                onClick={() => alert('Draft saved successfully.')}
-              >
-                Save Draft
-              </button>
-              <button type="submit" className="btn btn-primary" style={{ background: '#1E4D36', borderColor: '#1E4D36' }}>
-                Create Transfer + Assign Vehicle
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {/* Right Column: Transfer History */}
+        {/* Right/Main Column: Transfer History */}
         <div className="card" style={{ height: '100%' }}>
-          <div className="card-header">
-            <div className="section-title">Transfer History</div>
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="section-title">{isBuyer ? 'Consolidated Goods Receipt Note (GRN) Ledger' : 'Transfer History'}</div>
+            {isBuyer && (
+              <button 
+                className="btn btn-primary"
+                onClick={() => {
+                  // Simulate creating a new manual GRN
+                  const newGrnId = `TRF-2026-0${19 + transfers.length - 3}`;
+                  const newGrn = {
+                    id: newGrnId,
+                    fromFpo: 'Phaltan FPO',
+                    commodity: 'Wheat',
+                    quantity: 4000,
+                    dispatchedDate: 'Today',
+                    status: 'GRN Pending',
+                    variance: 0,
+                    receivedQty: 4000,
+                    arrivalTime: 'Arrived Just Now',
+                    varianceReason: '',
+                    notes: ''
+                  };
+                  setTransfers(prev => [newGrn, ...prev]);
+                  setActiveTransferId(newGrnId);
+                  setReceivedQtyInput('4000');
+                  alert(`Manually created new pending GRN note entry: ${newGrnId}`);
+                }}
+              >
+                + Create Goods Receipt Note
+              </button>
+            )}
           </div>
           <div className="table-responsive">
             <table>
               <thead>
                 <tr>
-                  <th style={{ width: '90px' }}>Transfer ID</th>
-                  <th>From FPO</th>
+                  <th style={{ width: '90px' }}>{isBuyer ? 'GRN Ref ID' : 'Transfer ID'}</th>
+                  <th>Origin FPO</th>
                   <th>Commodity</th>
                   <th>Dispatched</th>
                   <th>Status</th>
@@ -378,9 +417,9 @@ export default function Transfers({ intakes = [], onAddActivity }) {
         <div className="card" style={{ marginTop: '10px' }}>
           <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div className="section-title">GRN Reconciliation — {activeTransfer.id}</div>
+              <div className="section-title">GRN Verification & Verification — {activeTransfer.id}</div>
               <div className="section-sub" style={{ marginTop: '4px' }}>
-                Satara MahaFPC Aggregator · {activeTransfer.arrivalTime}
+                Receiving Center · {activeTransfer.arrivalTime}
               </div>
             </div>
             {currentVarianceVal !== 0 ? (
@@ -455,7 +494,7 @@ export default function Transfers({ intakes = [], onAddActivity }) {
               <label className="form-label">GRN Inspector Notes</label>
               <textarea 
                 className="form-textarea" 
-                placeholder="Inspector notes here..."
+                placeholder="Write observations (e.g. moisture check results, shrinkage comments)..."
                 value={inspectorNotes}
                 onChange={(e) => setInspectorNotes(e.target.value)}
                 disabled={activeTransfer.status === 'GRN Done'}
@@ -483,7 +522,7 @@ export default function Transfers({ intakes = [], onAddActivity }) {
               </div>
             ) : (
               <div style={{ textAlign: 'right', fontSize: '13px', color: 'var(--text3)', fontWeight: '500' }}>
-                Reconciliation finalized and closed. e-WR weight update dispatched.
+                Reconciliation finalized and closed. Ledger updated.
               </div>
             )}
           </div>

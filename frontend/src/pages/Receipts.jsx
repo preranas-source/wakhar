@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function Receipts({ receipts, intakes = [], onApplyCollateral, searchQuery }) {
+export default function Receipts({ receipts, intakes = [], onApplyCollateral, searchQuery, role }) {
   const [filterTab, setFilterTab] = useState('Active');
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   
@@ -9,6 +9,10 @@ export default function Receipts({ receipts, intakes = [], onApplyCollateral, se
   const [targetReceipt, setTargetReceipt] = useState(null);
   const [pledgeBank, setPledgeBank] = useState('NABARD');
   const [pledgeAmount, setPledgeAmount] = useState(0);
+
+  // View Receipt Certificate Modal
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [viewingReceipt, setViewingReceipt] = useState(null);
 
   const handleOpenPledge = (receipt) => {
     setTargetReceipt(receipt);
@@ -39,7 +43,12 @@ export default function Receipts({ receipts, intakes = [], onApplyCollateral, se
 
   // Filter logic
   const filteredReceipts = receipts.filter(wr => {
-    // 1. Search filter
+    // 1. Role-based scoping: Farmer only sees their own receipts
+    if (role === 'farmer' && wr.farmerId !== 'FM-00412') {
+      return false;
+    }
+
+    // 2. Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesQuery = 
@@ -49,7 +58,7 @@ export default function Receipts({ receipts, intakes = [], onApplyCollateral, se
       if (!matchesQuery) return false;
     }
 
-    // 2. Tab filter
+    // 3. Tab filter
     const status = getReceiptStatus(wr);
     if (filterTab === 'Active') {
       return status === 'Active' || status === 'Reserved';
@@ -62,6 +71,11 @@ export default function Receipts({ receipts, intakes = [], onApplyCollateral, se
   });
 
   const activeReceipt = selectedReceipt || filteredReceipts[0] || null;
+
+  const handleViewReceipt = (receipt) => {
+    setViewingReceipt(receipt);
+    setIsViewModalOpen(true);
+  };
 
   const formatWRId = (id) => {
     const parts = id.split('-');
@@ -81,9 +95,11 @@ export default function Receipts({ receipts, intakes = [], onApplyCollateral, se
     <div className="page active" id="page-receipts" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Title block */}
       <div>
-        <div style={{ fontFamily: 'var(--font-sans)', fontSize: '20px', fontWeight: '600', color: 'var(--text)' }}>Warehouse Receipts</div>
+        <div style={{ fontFamily: 'var(--font-sans)', fontSize: '20px', fontWeight: '600', color: 'var(--text)' }}>
+          {role === 'farmer' ? 'My Warehouse Receipts' : 'Warehouse Receipts'}
+        </div>
         <div style={{ color: 'var(--text3)', fontSize: '13px', marginTop: '6px' }}>
-          eNAM-compatible · Usable as loan collateral
+          eNAM-compatible Negotiable Electronic Warehouse Receipts (e-WR)
         </div>
       </div>
 
@@ -93,7 +109,7 @@ export default function Receipts({ receipts, intakes = [], onApplyCollateral, se
           className={`filter-tab ${filterTab === 'Active' ? 'active' : ''}`}
           onClick={() => {
             setFilterTab('Active');
-            setSelectedReceipt(null); // Reset detail selected receipt
+            setSelectedReceipt(null);
           }}
         >
           Active
@@ -105,7 +121,7 @@ export default function Receipts({ receipts, intakes = [], onApplyCollateral, se
             setSelectedReceipt(null);
           }}
         >
-          Collateral
+          Pledged / Collateral
         </button>
         <button 
           className={`filter-tab ${filterTab === 'Redeemed' ? 'active' : ''}`}
@@ -132,7 +148,7 @@ export default function Receipts({ receipts, intakes = [], onApplyCollateral, se
                   <th>Qty</th>
                   <th>Grade</th>
                   <th>Validity</th>
-                  <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -173,13 +189,16 @@ export default function Receipts({ receipts, intakes = [], onApplyCollateral, se
                           {wr.validity || '30 Aug 2026'}
                         </td>
                         <td>
-                          <span className={`badge ${
-                            status === 'Collateral' ? 'badge-purple' :
-                            status === 'Reserved' ? 'badge-blue' :
-                            'badge-blue'
-                          }`}>
-                            {status}
-                          </span>
+                          <button 
+                            className="btn btn-outline"
+                            style={{ padding: '4px 8px', fontSize: '11px', background: '#fff' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewReceipt(wr);
+                            }}
+                          >
+                            🔍 View
+                          </button>
                         </td>
                       </tr>
                     );
@@ -265,9 +284,9 @@ export default function Receipts({ receipts, intakes = [], onApplyCollateral, se
               <button 
                 className="btn btn-outline" 
                 style={{ flex: 1, background: '#fff' }}
-                onClick={() => alert(`Downloading quality certificate PDF for Receipt ${activeReceipt.id}...`)}
+                onClick={() => handleViewReceipt(activeReceipt)}
               >
-                📥 Download PDF
+                🔍 View Certificate
               </button>
               {activeReceipt.collateralStatus === 'None' ? (
                 <button 
@@ -275,12 +294,12 @@ export default function Receipts({ receipts, intakes = [], onApplyCollateral, se
                   style={{ flex: 1, background: 'var(--green)', borderColor: 'var(--green)' }}
                   onClick={() => handleOpenPledge(activeReceipt)}
                 >
-                  Mark Collateral
+                  Apply Pledge Loan
                 </button>
               ) : (
                 <button 
                   className="btn btn-primary" 
-                  style={{ flex: 1, background: 'var(--purple)', borderColor: 'var(--purple)' }}
+                  style={{ flex: 1, background: 'var(--purple)', borderColor: 'var(--purple)', color: '#fff' }}
                   disabled
                 >
                   Pledged
@@ -294,6 +313,148 @@ export default function Receipts({ receipts, intakes = [], onApplyCollateral, se
           </div>
         )}
       </div>
+
+      {/* 1. View Electronic Certificate Modal (View Receipt Modal) */}
+      {isViewModalOpen && viewingReceipt && (
+        <div className="modal-overlay" onClick={() => setIsViewModalOpen(false)}>
+          <div 
+            className="modal-container" 
+            onClick={(e) => e.stopPropagation()} 
+            style={{ 
+              maxWidth: '580px', 
+              background: '#FFFDF9', 
+              border: '3px double #C4B293', 
+              padding: '30px',
+              fontFamily: 'var(--font-sans)',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.2)' 
+            }}
+          >
+            {/* Header / Watermark Border */}
+            <div style={{ textAlign: 'center', borderBottom: '2px solid #8C7853', paddingBottom: '16px', marginBottom: '20px' }}>
+              <div style={{ fontSize: '10px', letterSpacing: '2px', fontWeight: 'bold', color: '#8C7853', textTransform: 'uppercase' }}>
+                Government of Maharashtra · Department of Agriculture
+              </div>
+              <div style={{ fontSize: '22px', fontWeight: 'bold', fontFamily: 'var(--font-serif)', color: 'var(--green)', marginTop: '4px' }}>
+                WAKHAR WAREHOUSING CORPORATION
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text3)', fontStyle: 'italic', marginTop: '2px' }}>
+                Negotiable Electronic Warehouse Receipt (e-WR)
+              </div>
+            </div>
+
+            {/* Certificate Body */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '13.5px', color: '#1C1A14' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E5DCC6', paddingBottom: '8px' }}>
+                <span><strong>Receipt Number (WR ID):</strong></span>
+                <span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: '14.5px', color: 'var(--blue)' }}>{viewingReceipt.id}</span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase' }}>Farmer Name</span>
+                  <div style={{ fontWeight: '600' }}>{viewingReceipt.farmerName}</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase' }}>Farmer Registration ID</span>
+                  <div style={{ fontWeight: '600' }}>{viewingReceipt.farmerId}</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', borderTop: '1px solid #EDE9E0', paddingTop: '10px' }}>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase' }}>Commodity Type</span>
+                  <div style={{ fontWeight: '600' }}>{viewingReceipt.commodity} ({viewingReceipt.variety || 'Basmati'})</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase' }}>AGMARK Certified Grade</span>
+                  <div style={{ fontWeight: 'bold', color: 'var(--green)' }}>{viewingReceipt.grade}</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', borderTop: '1px solid #EDE9E0', paddingTop: '10px' }}>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase' }}>Total Net Weight</span>
+                  <div style={{ fontWeight: '700' }}>{viewingReceipt.quantity.toLocaleString()} kg ({viewingReceipt.bags} standard bags)</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase' }}>Measured Moisture Content</span>
+                  <div style={{ fontWeight: '600' }}>{viewingReceipt.moisture}%</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', borderTop: '1px solid #EDE9E0', paddingTop: '10px' }}>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase' }}>Issue Date</span>
+                  <div style={{ fontWeight: '500' }}>{viewingReceipt.date}</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase' }}>Validity Expiry Date</span>
+                  <div style={{ fontWeight: '500', color: 'var(--red)' }}>{viewingReceipt.validity || '30 Aug 2026'}</div>
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid #EDE9E0', paddingTop: '10px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase' }}>Storage Center</span>
+                <div style={{ fontWeight: '600' }}>{viewingReceipt.warehouse} (Zone / Bin: {viewingReceipt.zone || 'Zone A-3'})</div>
+              </div>
+
+              {/* QR and Signature Block */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', borderTop: '2px solid #8C7853', paddingTop: '16px' }}>
+                <div style={{ textAlign: 'center' }}>
+                  {/* Mock QR Representation */}
+                  <div style={{ width: '70px', height: '70px', background: '#e0e0e0', border: '1px solid #999', display: 'flex', flexDirection: 'column', gap: '2px', padding: '4px', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '2px' }}>
+                      <div style={{ width: '16px', height: '16px', background: '#000' }}></div>
+                      <div style={{ width: '16px', height: '16px', background: '#ccc' }}></div>
+                      <div style={{ width: '16px', height: '16px', background: '#000' }}></div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '2px' }}>
+                      <div style={{ width: '16px', height: '16px', background: '#ccc' }}></div>
+                      <div style={{ width: '16px', height: '16px', background: '#000' }}></div>
+                      <div style={{ width: '16px', height: '16px', background: '#ccc' }}></div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '2px' }}>
+                      <div style={{ width: '16px', height: '16px', background: '#000' }}></div>
+                      <div style={{ width: '16px', height: '16px', background: '#ccc' }}></div>
+                      <div style={{ width: '16px', height: '16px', background: '#000' }}></div>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '9px', color: 'var(--text3)', marginTop: '4px', display: 'block' }}>e-WR Secure QR</span>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '14px', fontFamily: 'cursive', color: '#2B2B2B', paddingBottom: '4px' }}>Rajesh Bhosale</div>
+                  <div style={{ borderTop: '1px solid #5A5446', width: '180px', marginTop: '4px' }} />
+                  <span style={{ fontSize: '10px', color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginTop: '4px' }}>Authorized Signatory (FPO)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="form-footer" style={{ borderTop: '1px solid var(--border)', marginTop: '20px', padding: '16px 0 0', justifyContent: 'center' }}>
+              <button 
+                type="button" 
+                className="btn btn-outline" 
+                onClick={() => {
+                  alert('Launching system print dialog...');
+                  window.print();
+                }}
+              >
+                🖨 Print Certificate
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-outline"
+                onClick={() => alert(`Simulating PDF compile for e-WR: ${viewingReceipt.id}... PDF file downloaded successfully.`)}
+              >
+                📥 Download PDF
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => setIsViewModalOpen(false)}>
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pledge Loan Application Modal */}
       {isPledgeModalOpen && targetReceipt && (
