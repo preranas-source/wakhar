@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { getTranslation } from '@wakhar/shared';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { useAuth } from '../hooks/useAuth';
 
 export default function Layout({
   children,
@@ -9,17 +9,15 @@ export default function Layout({
   setActiveTab,
   searchQuery,
   setSearchQuery,
-  currentUser,
-  setCurrentUser,
   alertsCount,
   onShowAlertsModal,
   intakesCount,
   dispatchesCount,
   language = 'en',
   setLanguage,
-  role,
-  setRole
+  role
 }) {
+  const { currentUser, login, logout } = useAuth();
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const t = (key) => getTranslation(key, language);
   const navigate = useNavigate();
@@ -66,7 +64,7 @@ export default function Layout({
             ]
           }
         ];
-      case 'fpo':
+      case 'fpo_manager':
         return [
           {
             group: 'Overview',
@@ -77,22 +75,24 @@ export default function Layout({
           {
             group: 'Operations',
             items: [
-              { id: 'intake', label: 'Commodity Intake', badge: intakesCount > 0 ? intakesCount : null, icon: icons.intake },
-              { id: 'inventory', label: 'Inventory', icon: icons.inventory },
-              { id: 'dispatch', label: 'Dispatch', badge: dispatchesCount > 0 ? dispatchesCount : null, icon: icons.dispatch },
-              { id: 'grading', label: 'Grading & QC', icon: icons.grading }
+              { id: 'inventory', label: 'Commodity Lots', icon: icons.inventory },
+              { id: 'warehouses', label: 'Warehouses', icon: icons.warehouses },
+              { id: 'grading', label: 'Quality Records', icon: icons.grading },
+              { id: 'receipts', label: 'e-WR', icon: icons.receipts },
+              { id: 'transfers', label: 'Stock Movements', icon: icons.transfers },
+              { id: 'dispatch', label: 'Dispatch Notes', badge: dispatchesCount > 0 ? dispatchesCount : null, icon: icons.dispatch }
             ]
-          },
+          }
+        ];
+      case 'fpo_staff':
+        return [
           {
-            group: 'Finance',
+            group: 'Staff Actions',
             items: [
-              { id: 'receipts', label: 'Warehouse Receipts', icon: icons.receipts }
-            ]
-          },
-          {
-            group: 'Admin',
-            items: [
-              { id: 'reports', label: 'Reports', icon: icons.reports }
+              { id: 'farmer', label: 'Farmer Registration', icon: icons.farmer },
+              { id: 'intake', label: 'Intake Form', icon: icons.intake },
+              { id: 'grading', label: 'QC Inspection', icon: icons.grading },
+              { id: 'scanner', label: 'Scanner', icon: icons.stockcount }
             ]
           }
         ];
@@ -105,47 +105,34 @@ export default function Layout({
             ]
           },
           {
-            group: 'Warehouse Network',
+            group: 'Inventory',
             items: [
-              { id: 'warehouses', label: 'Multi-Warehouse View', icon: icons.warehouses },
-              { id: 'inventory', label: 'Inventory', icon: icons.inventory }
-            ]
-          },
-          {
-            group: 'Logistics',
-            items: [
-              { id: 'transfers', label: 'Transfer Management', icon: icons.transfers },
-              { id: 'aggregator', label: 'Dispatch Tracking', icon: icons.aggregator }
-            ]
-          },
-          {
-            group: 'Trade & Analytics',
-            items: [
-              { id: 'market', label: 'Market Linkage', icon: icons.market },
-              { id: 'reports', label: 'Analytics', icon: icons.reports }
+              { id: 'inventory', label: 'Inventory Overview', icon: icons.inventory },
+              { id: 'transfers', label: 'Stock Transfers', icon: icons.transfers },
+              { id: 'dispatch', label: 'Dispatches', badge: dispatchesCount > 0 ? dispatchesCount : null, icon: icons.dispatch }
             ]
           }
         ];
       case 'market_partner':
         return [
           {
-            group: 'Overview',
+            group: 'Market Portal',
             items: [
-              { id: 'dashboard', label: 'Dashboard', icon: icons.dashboard }
+              { id: 'market', label: 'Marketplace', icon: icons.market },
+              { id: 'purchase-orders', label: 'Purchase Orders', icon: icons.receipts },
+              { id: 'payments', label: 'Payments', icon: icons.receipts }
             ]
-          },
+          }
+        ];
+      case 'admin':
+        return [
           {
-            group: 'Stock & Orders',
+            group: 'System Admin',
             items: [
-              { id: 'market', label: 'Available Stock', icon: icons.market },
-              { id: 'purchase-orders', label: 'Purchase Orders', icon: icons.receipts }
-            ]
-          },
-          {
-            group: 'Logistics',
-            items: [
-              { id: 'dispatch', label: 'Dispatch Tracking', icon: icons.dispatch },
-              { id: 'transfers', label: 'Goods Receipt Note (GRN)', icon: icons.transfers }
+              { id: 'users', label: 'User Management', icon: icons.farmer },
+              { id: 'fpos', label: 'FPO Management', icon: icons.warehouses },
+              { id: 'warehouses', label: 'Warehouse Management', icon: icons.warehouses },
+              { id: 'dashboard', label: 'System Dashboard', icon: icons.dashboard }
             ]
           }
         ];
@@ -154,7 +141,8 @@ export default function Layout({
     }
   };
 
-  const navigation = getNavigationByRole(role);
+  const currentRole = currentUser?.role || role || 'fpo_manager';
+  const navigation = getNavigationByRole(currentRole);
 
   const getPageTitle = () => {
     for (const group of navigation) {
@@ -166,36 +154,27 @@ export default function Layout({
   };
 
   const usersList = [
-    { name: 'Rajesh Bhosale', role: 'FPO Manager', initials: 'RB', view: 'dashboard', roleKey: 'fpo', phone: '+919876500001' },
-    { name: 'Suresh Patil', role: 'Farmer (FM-00412)', initials: 'SP', view: 'farmer', roleKey: 'farmer', phone: '+919876543210' },
-    { name: 'Satara Aggregators', role: 'Aggregator Buyer', initials: 'SA', view: 'aggregator', roleKey: 'aggregator', phone: '+919876500003' },
-    { name: 'Raigad Mart', role: 'Market Partner', initials: 'RM', view: 'dashboard', roleKey: 'market_partner', phone: '+919876500004' }
+    { name: 'Rajesh Bhosale', role: 'FPO Manager', initials: 'RB', phone: '+919876500001' },
+    { name: 'Suresh Patil', role: 'Farmer', initials: 'SP', phone: '+919876543210' },
+    { name: 'Satara Aggregators', role: 'Aggregator Buyer', initials: 'SA', phone: '+919876500003' },
+    { name: 'Raigad Mart', role: 'Market Partner', initials: 'RM', phone: '+919876500004' }
   ];
 
   const handleUserChange = async (user) => {
     try {
-      const response = await axios.post('http://localhost:8000/api/auth/login', {
-        phone: user.phone,
-        password: '123456'
-      });
-      
-      const { access_token, user: resUser } = response.data;
-      localStorage.setItem('wakhar_access_token', access_token);
-      
-      const mappedRole = (resUser.role === 'fpo_manager' || resUser.role === 'fpo_staff') ? 'fpo' : resUser.role;
-      localStorage.setItem('role', mappedRole);
-      
+      await login(user.phone, '123456');
       setShowUserDropdown(false);
-      navigate(`/${mappedRole}/${user.view}`);
-      
-      setTimeout(() => {
-        window.location.reload();
-      }, 50);
+      window.location.reload();
     } catch (err) {
       console.error('Switch perspective failed:', err);
       alert('Failed to switch perspective. Please check backend connectivity.');
     }
-  }; return (
+  };
+
+  const userInitials = currentUser?.initials || (currentUser?.full_name ? currentUser.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'RB');
+  const userRoleLabel = currentUser?.role ? currentUser.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'FPO Manager';
+
+  return (
     <>
       {/* SIDEBAR */}
       <aside className="sidebar">
@@ -223,10 +202,10 @@ export default function Layout({
 
         <div className="sidebar-footer" style={{ position: 'relative' }}>
           <div className="user-pill" onClick={() => setShowUserDropdown(!showUserDropdown)}>
-            <div className="avatar">{currentUser.initials}</div>
+            <div className="avatar">{userInitials}</div>
             <div>
-              <div className="user-name">{currentUser.name}</div>
-              <div className="user-role">{currentUser.role}</div>
+              <div className="user-name">{currentUser?.full_name || 'Rajesh Bhosale'}</div>
+              <div className="user-role">{userRoleLabel}</div>
             </div>
           </div>
           {showUserDropdown && (
@@ -246,6 +225,29 @@ export default function Layout({
                 color: '#1C1A14'
               }}
             >
+              {/* Switch perspective demo shortcut helper */}
+              <div style={{ padding: '8px 12px', fontSize: '11px', color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>
+                Demo Switch Perspective:
+              </div>
+              {usersList.map((usr, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    fontSize: '12.5px',
+                    transition: 'background 0.1s'
+                  }}
+                  onMouseEnter={(e) => e.target.style.background = '#F5F2EC'}
+                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                  onClick={() => handleUserChange(usr)}
+                >
+                  {usr.name} ({usr.role})
+                </div>
+              ))}
+              
+              <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }}></div>
+
               {/* Logout Option */}
               <div 
                 style={{
@@ -264,9 +266,7 @@ export default function Layout({
                 onMouseLeave={(e) => e.target.style.background = 'transparent'}
                 onClick={() => {
                   setShowUserDropdown(false);
-                  localStorage.removeItem('wakhar_access_token');
-                  localStorage.removeItem('role');
-                  navigate('/');
+                  logout();
                 }}
               >
                 <span>🚪</span>

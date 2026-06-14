@@ -26,16 +26,12 @@ engine = create_engine(DATABASE_URL, echo=False)
 
 
 def seed():
+    print("🧹 Dropping all tables...")
+    Base.metadata.drop_all(engine)
+    print("🚀 Recreating all tables...")
+    Base.metadata.create_all(engine)
+
     with Session(engine) as session:
-        # ──────────────────────────────────────────
-        # 0. Clear Existing Data
-        # ──────────────────────────────────────────
-        print("🧹 Clearing existing database data...")
-        session.execute(text("SET FOREIGN_KEY_CHECKS = 0;"))
-        for table in reversed(Base.metadata.sorted_tables):
-            session.execute(table.delete())
-        session.execute(text("SET FOREIGN_KEY_CHECKS = 1;"))
-        session.commit()
 
         # ──────────────────────────────────────────
         # 1. FPOs

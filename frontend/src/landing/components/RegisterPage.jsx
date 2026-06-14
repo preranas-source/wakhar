@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import authService from '../../services/authService';
 import '../landing.css';
 
 export default function RegisterPage() {
@@ -21,10 +21,10 @@ export default function RegisterPage() {
   useEffect(() => {
     const fetchFPOs = async () => {
       try {
-        const response = await axios.get('http://localhost:8000/api/auth/fpos');
-        setFpos(response.data);
-        if (response.data.length > 0) {
-          setForm(f => ({ ...f, fpoId: response.data[0].id }));
+        const data = await authService.getFPOs();
+        setFpos(data);
+        if (data.length > 0) {
+          setForm(f => ({ ...f, fpoId: data[0].id }));
         }
       } catch (err) {
         console.error('Failed to fetch FPOs:', err);
@@ -49,7 +49,7 @@ export default function RegisterPage() {
     };
 
     try {
-      await axios.post('http://localhost:8000/api/auth/register', payload);
+      await authService.register(payload);
       setSuccess('Account created successfully! Redirecting to login...');
       setTimeout(() => {
         // Redirect to specific portal login page

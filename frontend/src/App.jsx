@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import axios from 'axios';
-import { apiSim, getTranslation, getSubstringsDict } from '@wakhar/shared';
+import { getTranslation, getSubstringsDict, apiSim } from '@wakhar/shared';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Intake from './pages/Intake';
@@ -17,79 +16,26 @@ import AggregatorView from './pages/AggregatorView';
 import Warehouses from './pages/Warehouses';
 import Reports from './pages/Reports';
 import Integrations from './pages/Integrations';
+import { useAuth } from './hooks/useAuth';
+import apiClient from './services/apiClient';
+import inventoryService from './services/inventoryService';
+import dispatchService from './services/dispatchService';
+import dashboardService from './services/dashboardService';
+import commodityService from './services/commodityService';
+import warehouseService from './services/warehouseService';
+import farmerService from './services/farmerService';
+import fpoService from './services/fpoService';
+import qualityService from './services/qualityService';
 import './App.css';
 
-// --- SEED SEED DATA ---
-const initialFarmers = [
-  { id: 'FM-00412', name: 'Suresh Patil', phone: '+91 98765 43210', aadhaar: '4532-8901-4821', village: 'Wai' },
-  { id: 'FM-00389', name: 'Anita Shinde', phone: '+91-99230-44556', aadhaar: '7891-2345-6789', village: 'Phaltan' },
-  { id: 'FM-00301', name: 'Ramesh Jadhav', phone: '+91-94210-77889', aadhaar: '3210-6789-0123', village: 'Wai' },
-  { id: 'FM-00451', name: 'Priya More', phone: '+91-91300-22334', aadhaar: '6789-0123-4567', village: 'Baramati' },
-  { id: 'FM-00218', name: 'Vijay Kale', phone: '+91-95610-88990', aadhaar: '9012-3456-7890', village: 'Phaltan' }
-];
-
-const initialIntakes = [
-  { id: 'LOT-2026-091', farmerId: 'FM-00412', farmerName: 'Suresh Patil', commodity: 'Rice', variety: 'Basmati', quantity: 900, bags: 18, moisture: 12.4, grade: 'Grade A', gradeClass: 'badge-green', warehouse: 'Wai FPO', zone: 'Zone A — Rack 3', status: 'Available', date: '30 May 2026', remarks: '' },
-  { id: 'LOT-2026-090', farmerId: 'FM-00389', farmerName: 'Anita Shinde', commodity: 'Wheat', variety: 'Lokwan', quantity: 1200, bags: 24, moisture: 13.1, grade: 'Grade A', gradeClass: 'badge-green', warehouse: 'Phaltan FPO', zone: 'Zone B — Rack 1', status: 'Reserved', date: '30 May 2026', remarks: '' },
-  { id: 'LOT-2026-089', farmerId: 'FM-00301', farmerName: 'Ramesh Jadhav', commodity: 'Soybean', variety: 'JS-335', quantity: 600, bags: 12, moisture: 18.2, grade: 'Grade B', gradeClass: 'badge-amber', warehouse: 'Wai FPO', zone: 'Zone A — Rack 4', status: 'QC Pending', date: '29 May 2026', remarks: 'Aeration required' },
-  { id: 'LOT-2026-088', farmerId: 'FM-00451', farmerName: 'Priya More', commodity: 'Onion', variety: 'Nasik Red', quantity: 800, bags: 40, moisture: 10.8, grade: 'Grade A', gradeClass: 'badge-green', warehouse: 'Baramati FPO', zone: 'Zone C — Rack 2', status: 'Available', date: '29 May 2026', remarks: '' },
-  { id: 'LOT-2026-087', farmerId: 'FM-00218', farmerName: 'Vijay Kale', commodity: 'Rice', variety: 'HMT', quantity: 450, bags: 9, moisture: 21.5, grade: 'Rejected', gradeClass: 'badge-red', warehouse: 'Wai FPO', zone: 'Zone A — Rack 3', status: 'Returned', date: '28 May 2026', remarks: 'Returned due to critical moisture' }
-];
-
-const initialDispatches = [
-  {
-    id: 'DN-0082',
-    lotId: 'LOT-2026-089',
-    commodity: 'Soybean (JS-335)',
-    quantity: '12 MT',
-    destination: 'Satara Aggregator',
-    vehicle: 'MH-11-AB-4421',
-    status: 'In Transit',
-    timeline: [
-      { title: 'Dispatch Note Created', sub: 'Today, 9:15 AM', done: true },
-      { title: 'Weigh Bridge Gate-out weight certified', sub: 'Today, 10:00 AM', done: true },
-      { title: 'NIC e-Way Bill generated & synchronized', sub: 'Today, 10:12 AM', done: true },
-      { title: 'Delivery e-POD check in-transit', sub: 'Estimated delivery 6:00 PM', active: true }
-    ]
-  },
-  {
-    id: 'DN-0081',
-    lotId: 'LOT-2026-090',
-    commodity: 'Wheat (Lokwan)',
-    quantity: '8 MT',
-    destination: 'Phaltan FPO Warehouse',
-    vehicle: 'MH-12-PQ-9080',
-    status: 'Delivered',
-    timeline: [
-      { title: 'Dispatch Note Created', sub: 'Yesterday, 8:00 AM', done: true },
-      { title: 'Weigh Bridge Gate-out weight certified', sub: 'Yesterday, 8:45 AM', done: true },
-      { title: 'NIC e-Way Bill generated & synchronized', sub: 'Yesterday, 9:00 AM', done: true },
-      { title: 'Delivery e-POD completed & signed', sub: 'Yesterday, 4:30 PM', done: true }
-    ]
-  }
-];
-
-const initialReceipts = [
-  { id: 'WR-2026-0347', lotId: 'LOT-2026-091', farmerId: 'FM-00412', farmerName: 'Suresh Patil', commodity: 'Rice', variety: 'Basmati', quantity: 900, bags: 18, moisture: 12.4, grade: 'Grade A', value: 56250, collateralStatus: 'None', loanAmount: 0, date: '30 May 2026', validity: '30 Aug 2026' },
-  { id: 'WR-2026-0346', lotId: 'LOT-2026-090', farmerId: 'FM-00389', farmerName: 'Anita Shinde', commodity: 'Wheat', variety: 'Lokwan', quantity: 1200, bags: 24, moisture: 13.1, grade: 'Grade A', value: 27360, collateralStatus: 'Disbursed', pledgeBank: 'NABARD', loanAmount: 19150, date: '30 May 2026', validity: '30 Aug 2026' },
-  { id: 'WR-2026-0340', lotId: 'LOT-2026-088', farmerId: 'FM-00451', farmerName: 'Priya More', commodity: 'Onion', variety: 'Nasik Red', quantity: 800, bags: 40, moisture: 10.8, grade: 'Grade A', value: 14800, collateralStatus: 'Disbursed', pledgeBank: 'NABARD', loanAmount: 10360, date: '29 May 2026', validity: '15 Aug 2026' },
-  { id: 'WR-2026-0332', lotId: 'LOT-2026-089', farmerId: 'FM-00301', farmerName: 'Ramesh Jadhav', commodity: 'Groundnut', variety: 'TG-37', quantity: 1500, bags: 30, moisture: 11.5, grade: 'Grade A', value: 102000, collateralStatus: 'None', loanAmount: 0, date: '5 Jun 2026', validity: '5 Sep 2026' }
-];
-
-const initialActivities = [
-  { type: 'intake', text: 'Intake completed — Farmer <strong>Suresh Patil</strong> deposited 18 bags (900 kg) Rice Grade A at Wai FPO', time: 'Today, 10:42 AM · WR-2026-0347' },
-  { type: 'dispatch', text: 'Dispatch Note <strong>DN-0082</strong> created — 12 MT Soybean dispatched to Satara Aggregator via Vehicle MH-11-AB-4421', time: 'Today, 9:15 AM' },
-  { type: 'qc', text: 'Quality alert — Lot <strong>LOT-2026-089</strong> moisture 18.2% exceeds threshold (14%). Flagged for re-drying.', time: 'Yesterday, 2:10 PM' },
-  { type: 'market', text: 'Purchase Order <strong>PO-2026-112</strong> accepted from Raigad Mart — 50 MT Wheat Grade A, ₹22,000/MT', time: 'Yesterday, 4:30 PM' }
-];
-
-export default function App() {
-  const { roleKey, tabName } = useParams();
+export default function App({ roleKey: propRoleKey }) {
+  const params = useParams();
   const navigate = useNavigate();
+  const { currentUser, loading: authLoading } = useAuth();
 
-  // Derive role and activeTab directly from URL routes
-  const role = roleKey || localStorage.getItem('role') || 'fpo';
-  const activeTab = tabName || (role === 'farmer' ? 'farmer' : 'dashboard');
+  const rawRole = propRoleKey || params.roleKey || localStorage.getItem('role') || 'fpo_manager';
+  const role = (rawRole === 'fpo_manager' || rawRole === 'fpo_staff') ? 'fpo' : rawRole;
+  const activeTab = params.tabName || (rawRole === 'fpo_staff' ? 'farmer' : rawRole === 'farmer' ? 'farmer' : 'dashboard');
 
   const setRole = (newRole) => {
     localStorage.setItem('role', newRole);
@@ -98,111 +44,193 @@ export default function App() {
   };
 
   const setActiveTab = (newTab) => {
-    navigate(`/${role}/${newTab}`);
-  };
-
-  const getInitialUser = (currentRole) => {
-    switch(currentRole) {
-      case 'farmer':
-        return { name: 'Suresh Patil', role: 'Farmer (FM-00412)', initials: 'SP', view: 'farmer', roleKey: 'farmer' };
-      case 'fpo':
-        return { name: 'Rajesh Bhosale', role: 'FPO Manager', initials: 'RB', view: 'dashboard', roleKey: 'fpo' };
-      case 'aggregator':
-        return { name: 'Satara Aggregators', role: 'Aggregator Buyer', initials: 'SA', view: 'aggregator', roleKey: 'aggregator' };
-      case 'market_partner':
-        return { name: 'Raigad Mart', role: 'Market Partner', initials: 'RM', view: 'dashboard', roleKey: 'market_partner' };
-      default:
-        return { name: 'Rajesh Bhosale', role: 'FPO Manager', initials: 'RB', view: 'dashboard', roleKey: 'fpo' };
-    }
+    // Map raw role to correct path prefix
+    const pathPrefix = rawRole === 'fpo_manager' ? 'dashboard' : rawRole === 'fpo_staff' ? 'staff' : rawRole;
+    navigate(`/${pathPrefix}/${newTab}`);
   };
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentUser, setCurrentUser] = useState(() => getInitialUser(role));
   const [language, setLanguage] = useState(() => {
     return localStorage.getItem('wakhar_language') || 'en';
   });
 
-  // Databases states synced from LocalStorage
-  const [intakes, setIntakes] = useState(() => {
-    const local = localStorage.getItem('wakhar_intakes');
-    return local ? JSON.parse(local) : initialIntakes;
-  });
+  // Database states fetched from FastAPI Backend
+  const [intakes, setIntakes] = useState([]);
+  const [dispatches, setDispatches] = useState([]);
+  const [receipts, setReceipts] = useState([]);
+  const [activities, setActivities] = useState([]);
 
-  const [dispatches, setDispatches] = useState(() => {
-    const local = localStorage.getItem('wakhar_dispatches');
-    return local ? JSON.parse(local) : initialDispatches;
-  });
+  // Seeding support lookups
+  const [dbCommodities, setDbCommodities] = useState([]);
+  const [dbWarehouses, setDbWarehouses] = useState([]);
+  const [dbFarmers, setDbFarmers] = useState([]);
+  const [dbUsers, setDbUsers] = useState([]);
+  const [dbFpos, setDbFpos] = useState([]);
 
-  const [receipts, setReceipts] = useState(() => {
-    const local = localStorage.getItem('wakhar_receipts');
-    return local ? JSON.parse(local) : initialReceipts;
-  });
-
-  const [activities, setActivities] = useState(() => {
-    const local = localStorage.getItem('wakhar_activities');
-    return local ? JSON.parse(local) : initialActivities;
-  });
-
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState(null);
   const [showAlertsModal, setShowAlertsModal] = useState(false);
-  const [loading, setLoading] = useState(true);
 
-  // Authentication & Session Loading from Backend
-  useEffect(() => {
-    const token = localStorage.getItem('wakhar_access_token');
-    if (!token) {
-      navigate('/');
-      return;
-    }
+  // Mappers
+  const mapLotToUI = useCallback((lot) => {
+    const gradeClasses = {
+      grade_a: 'badge-green',
+      grade_b: 'badge-amber',
+      grade_c: 'badge-orange',
+      rejected: 'badge-red',
+      pending: 'badge-gray'
+    };
+    const gradeLabels = {
+      grade_a: 'Grade A',
+      grade_b: 'Grade B',
+      grade_c: 'Grade C',
+      rejected: 'Rejected',
+      pending: 'QC Pending'
+    };
+    const statusLabels = {
+      available: 'Available',
+      reserved: 'Reserved',
+      qc_pending: 'QC Pending',
+      in_transit: 'In Transit',
+      delivered: 'Delivered',
+      returned: 'Returned'
+    };
+    
+    return {
+      id: lot.lot_code,
+      dbId: lot.id,
+      farmerId: lot.farmer?.farmer_code || `FM-${lot.farmer_id}`,
+      dbFarmerId: lot.farmer_id,
+      farmerName: lot.farmer?.name || 'Unknown Farmer',
+      commodity: lot.commodity?.name || 'Unknown Crop',
+      variety: lot.variety || '',
+      quantity: parseFloat(lot.quantity_kg),
+      bags: lot.bag_count,
+      moisture: parseFloat(lot.moisture_pct || 0),
+      grade: gradeLabels[lot.grade] || lot.grade,
+      gradeClass: gradeClasses[lot.grade] || 'badge-gray',
+      warehouse: lot.warehouse?.name || 'Unknown Warehouse',
+      zone: lot.zone || '',
+      status: statusLabels[lot.status] || lot.status,
+      date: lot.intake_date ? new Date(lot.intake_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Unknown Date',
+      remarks: lot.remarks || ''
+    };
+  }, []);
 
-    const fetchProfile = async () => {
-      try {
-        const response = await axios.get('http://localhost:8000/api/auth/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        const user = response.data;
-        const mappedRole = (user.role === 'fpo_manager' || user.role === 'fpo_staff') ? 'fpo' : user.role;
-        
-        localStorage.setItem('role', mappedRole);
-        
-        // Correct path routing matching mappedRole
-        if (!roleKey || roleKey !== mappedRole) {
-          const defaultTab = mappedRole === 'farmer' ? 'farmer' : 'dashboard';
-          navigate(`/${mappedRole}/${defaultTab}`, { replace: true });
-        }
-        
-        const nameParts = user.full_name.split(' ');
-        const initials = user.initials || (nameParts.length > 1 ? nameParts[0][0] + nameParts[1][0] : nameParts[0][0]).toUpperCase();
+  const mapDispatchToUI = useCallback((dn) => {
+    const statusLabels = {
+      created: 'Created',
+      in_transit: 'In Transit',
+      delivered: 'Delivered'
+    };
+    
+    const timeline = (dn.timeline_events || [])
+      .sort((a, b) => (a.event_order || 0) - (b.event_order || 0))
+      .map(event => ({
+        title: event.event_title,
+        sub: event.event_description || new Date(event.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        done: event.is_completed,
+        active: !event.is_completed
+      }));
 
-        const roleLabels = {
-          fpo_manager: 'FPO Manager',
-          fpo_staff: 'FPO Staff',
-          farmer: `Farmer (${user.phone})`,
-          aggregator: 'Aggregator Buyer',
-          market_partner: 'Market Partner',
-          admin: 'System Admin'
-        };
+    return {
+      id: dn.dn_code,
+      dbId: dn.id,
+      lotId: dn.lot?.lot_code || '',
+      commodity: `${dn.lot?.commodity?.name || 'Unknown'} (${dn.lot?.variety || ''})`,
+      quantity: `${parseFloat(dn.dispatch_quantity_kg) / 1000} MT`,
+      quantityKg: parseFloat(dn.dispatch_quantity_kg),
+      destination: dn.destination,
+      vehicle: dn.vehicle_no,
+      status: statusLabels[dn.status] || dn.status,
+      timeline: timeline.length > 0 ? timeline : [
+        { title: 'Dispatch Note Created', sub: 'Just now', done: true }
+      ]
+    };
+  }, []);
 
-        setCurrentUser({
-          name: user.full_name,
-          role: roleLabels[user.role] || user.role,
-          initials: initials,
-          view: mappedRole === 'farmer' ? 'farmer' : mappedRole === 'aggregator' ? 'aggregator' : 'dashboard',
-          roleKey: mappedRole
-        });
-      } catch (err) {
-        console.error('Session verification failed:', err);
-        localStorage.removeItem('wakhar_access_token');
-        navigate('/');
-      } finally {
-        setLoading(false);
-      }
+  const mapReceiptToUI = useCallback((wr) => {
+    const pledgeStatusLabels = {
+      none: 'None',
+      applied: 'Applied',
+      disbursed: 'Disbursed'
+    };
+    
+    const gradeLabels = {
+      grade_a: 'Grade A',
+      grade_b: 'Grade B',
+      grade_c: 'Grade C',
+      rejected: 'Rejected',
+      pending: 'QC Pending'
     };
 
-    fetchProfile();
-  }, [navigate, roleKey]);
+    return {
+      id: wr.receipt_code,
+      dbId: wr.id,
+      lotId: wr.lot?.lot_code || '',
+      farmerId: wr.farmer?.farmer_code || `FM-${wr.farmer_id}`,
+      farmerName: wr.farmer?.name || 'Unknown',
+      commodity: wr.lot?.commodity?.name || 'Unknown',
+      variety: wr.lot?.variety || '',
+      quantity: parseFloat(wr.quantity_kg),
+      bags: wr.lot?.bag_count || 0,
+      moisture: parseFloat(wr.lot?.moisture_pct || 0),
+      grade: gradeLabels[wr.lot?.grade] || wr.lot?.grade || 'QC Pending',
+      value: parseFloat(wr.valuation),
+      collateralStatus: pledgeStatusLabels[wr.pledge_status] || 'None',
+      loanAmount: parseFloat(wr.loan_amount || 0),
+      date: wr.issue_date ? new Date(wr.issue_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '',
+      validity: wr.expiry_date ? new Date(wr.expiry_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+    };
+  }, []);
 
-  // Sync back to localstorage
+  const loadAllData = useCallback(async () => {
+    setDataLoading(true);
+    setDataError(null);
+    try {
+      const [lotsData, dispatchesData, receiptsData, statsData, commoditiesData, warehousesData, farmersData, usersData, fposData] = await Promise.all([
+        inventoryService.getLots(),
+        dispatchService.getDispatches(),
+        inventoryService.getReceipts(),
+        dashboardService.getStats(),
+        commodityService.getCommodities(),
+        warehouseService.getWarehouses(),
+        farmerService.getFarmers(),
+        rawRole === 'admin' ? apiClient.get('/api/users/').then(r => r.data).catch(() => []) : Promise.resolve([]),
+        fpoService.getFPOs().catch(() => [])
+      ]);
+
+      setDbCommodities(commoditiesData);
+      setDbWarehouses(warehousesData);
+      setDbFarmers(farmersData);
+      setDbUsers(usersData);
+      setDbFpos(fposData);
+
+      setIntakes(lotsData.map(mapLotToUI));
+      setDispatches(dispatchesData.map(mapDispatchToUI));
+      setReceipts(receiptsData.map(mapReceiptToUI));
+      
+      const mappedActivities = (statsData.recent_activity || []).map(log => ({
+        type: log.type,
+        text: log.message,
+        time: log.created_at ? new Date(log.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ', ' + new Date(log.created_at).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : 'Just now'
+      }));
+      setActivities(mappedActivities);
+    } catch (err) {
+      console.error('Failed to load data:', err);
+      setDataError('Could not sync with the Wakhar API. Make sure the backend server is running.');
+    } finally {
+      setDataLoading(false);
+    }
+  }, [mapLotToUI, mapDispatchToUI, mapReceiptToUI, rawRole]);
+
+  useEffect(() => {
+    if (currentUser) {
+      loadAllData();
+    }
+  }, [currentUser, loadAllData]);
+
+  // Sync language to localstorage
   useEffect(() => {
     localStorage.setItem('wakhar_language', language);
   }, [language]);
@@ -228,7 +256,6 @@ export default function App() {
           let translated = getTranslation(trimmed, language);
           
           if (translated === trimmed) {
-            // Apply substring replacements for dynamic texts
             const subDict = substrings[language];
             if (subDict) {
               let replacedText = trimmed;
@@ -379,226 +406,300 @@ export default function App() {
     };
   }, [language]);
 
-  useEffect(() => {
-    localStorage.setItem('wakhar_intakes', JSON.stringify(intakes));
-  }, [intakes]);
-
-  useEffect(() => {
-    localStorage.setItem('wakhar_dispatches', JSON.stringify(dispatches));
-  }, [dispatches]);
-
-  useEffect(() => {
-    localStorage.setItem('wakhar_receipts', JSON.stringify(receipts));
-  }, [receipts]);
-
-  useEffect(() => {
-    localStorage.setItem('wakhar_activities', JSON.stringify(activities));
-  }, [activities]);
-
-  // Alert warnings
+  // Alert warnings (high moisture lots)
   const highMoistureLots = intakes.filter(lot => lot.moisture > 14 && lot.status !== 'Returned');
 
-  // handlers
-  const handleAddIntake = (newLot) => {
-    setIntakes(prev => [newLot, ...prev]);
-
-    // Add log
-    const logTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ', Today';
-    const intakeLog = {
-      type: 'intake',
-      text: `Gate-In recorded — Lot <strong>${newLot.id}</strong> (${newLot.quantity} kg ${newLot.commodity}) deposited by <strong>${newLot.farmerName}</strong> at ${newLot.warehouse}`,
-      time: logTime
-    };
-
-    setActivities(prev => [intakeLog, ...prev]);
-
-    // ERPNext Sync Integration
-    apiSim.syncERPNextStock(newLot);
-
-    // If not returned, create warehouse receipt
-    if (newLot.status !== 'Returned') {
-      const cropRates = { Rice: 62.5, Wheat: 22.8, Soybean: 47.2, Onion: 18.5, Groundnut: 68 };
-      const baseRate = cropRates[newLot.commodity] || 20;
-      const valuation = Math.round((newLot.quantity * baseRate * 1000) / 1000); // Compute standard valuation
-
-      const validityDate = new Date();
-      validityDate.setMonth(validityDate.getMonth() + 3);
-      const validityStr = validityDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-
-      const wrId = `WR-2026-0${348 + receipts.length}`;
-      const newWR = {
-        id: wrId,
-        lotId: newLot.id,
-        farmerId: newLot.farmerId,
-        farmerName: newLot.farmerName,
-        commodity: newLot.commodity,
-        variety: newLot.variety,
-        quantity: newLot.quantity,
-        bags: newLot.bags,
-        moisture: newLot.moisture,
-        grade: newLot.grade,
-        value: valuation,
-        collateralStatus: 'None',
-        loanAmount: 0,
-        date: newLot.date,
-        validity: validityStr
+  // Operation Handlers
+  const handleAddIntake = async (newLot) => {
+    try {
+      const comm = dbCommodities.find(c => c.name === newLot.commodity);
+      const wh = dbWarehouses.find(w => w.name.includes(newLot.warehouse));
+      
+      const gradeMapping = {
+        'Grade A': 'grade_a',
+        'Grade B': 'grade_b',
+        'Grade C': 'grade_c',
+        'Rejected': 'rejected',
+        'QC Pending': 'pending'
       };
 
-      setReceipts(prev => [newWR, ...prev]);
+      const statusMapping = {
+        'Available': 'available',
+        'Reserved': 'reserved',
+        'QC Pending': 'qc_pending',
+        'In Transit': 'in_transit',
+        'Delivered': 'delivered',
+        'Returned': 'returned'
+      };
 
-      // Trigger Farmer SMS and WhatsApp receipt simulated delivery
-      const farmer = initialFarmers.find(f => f.id === newLot.farmerId) || { phone: '+91 98765 43210' };
-      apiSim.sendSMSNotification(farmer.phone, `WAKHAR: Deposit of ${newLot.quantity} kg ${newLot.commodity} at ${newLot.warehouse} (Grade: ${newLot.grade}) recorded successfully. Receipt Ref: ${wrId}.`);
-      apiSim.sendWhatsAppReceipt(farmer.phone, wrId, `Commodity: ${newLot.commodity}, Weight: ${newLot.quantity} kg, Grade: ${newLot.grade}, Valued at: ₹${valuation.toLocaleString()}`);
+      const lotPayload = {
+        lot_code: newLot.id,
+        farmer_id: parseInt(newLot.farmerId),
+        commodity_id: comm ? comm.id : 1,
+        variety: newLot.variety,
+        quantity_kg: parseFloat(newLot.quantity),
+        bag_count: parseInt(newLot.bags),
+        moisture_pct: parseFloat(newLot.moisture),
+        grade: gradeMapping[newLot.grade] || 'pending',
+        warehouse_id: wh ? wh.id : 1,
+        zone: newLot.zone,
+        status: statusMapping[newLot.status] || 'qc_pending',
+        intake_type: 'walk_in',
+        remarks: newLot.remarks,
+        intake_date: new Date().toISOString().split('T')[0]
+      };
 
-      // Append e-WR notification log
-      setActivities(prev => [
-        {
-          type: 'market',
-          text: `Negotiable e-WR <strong>${wrId}</strong> generated for Lot <strong>${newLot.id}</strong>. Face Valuation: ₹${valuation.toLocaleString()}`,
-          time: logTime
-        },
-        ...prev
-      ]);
+      const lotRes = await inventoryService.createLot(lotPayload);
+
+      // Simulate ERPNext integration if active
+      apiSim.syncERPNextStock(newLot);
+
+      if (lotRes.status !== 'returned' && lotRes.grade !== 'rejected') {
+        const expiryDate = new Date();
+        expiryDate.setMonth(expiryDate.getMonth() + 3);
+        
+        await inventoryService.createReceipt({
+          wr_code: `WR-2026-0${348 + receipts.length}`,
+          lot_id: lotRes.id,
+          farmer_id: lotRes.farmer_id,
+          issue_date: new Date().toISOString().split('T')[0],
+          expiry_date: expiryDate.toISOString().split('T')[0],
+          quantity_kg: lotRes.quantity_kg,
+          grade: lotRes.grade,
+          valuation: lotRes.quantity_kg * (comm ? comm.base_rate : 22.0)
+        });
+
+        const farmerPhone = dbFarmers.find(f => f.id === lotRes.farmer_id)?.phone || '+919876543210';
+        apiSim.sendSMSNotification(farmerPhone, `WAKHAR: Deposit of ${lotRes.quantity_kg} kg recorded. Grade: ${lotRes.grade}.`);
+      }
+
+      await loadAllData();
+    } catch (err) {
+      console.error('Intake failed:', err);
+      alert('Failed to register intake on backend.');
     }
   };
 
-  const handleUpdateGrade = (lotId, grade, gradeClass, moisture, status) => {
-    setIntakes(prev => prev.map(lot => {
-      if (lot.id === lotId) {
-        return { ...lot, grade, gradeClass, moisture, status };
-      }
-      return lot;
-    }));
+  const handleUpdateGrade = async (lotId, grade, gradeClass, moisture, status) => {
+    try {
+      const lot = intakes.find(l => l.id === lotId);
+      if (!lot) return;
 
-    // Update log
-    const logTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ', Today';
-    setActivities(prev => [
-      {
-        type: 'qc',
-        text: `Lab Certified — Lot <strong>${lotId}</strong> quality grade updated to <strong>${grade}</strong> (Moisture: ${moisture}%)`,
-        time: logTime
-      },
-      ...prev
-    ]);
+      const gradeMapping = {
+        'Grade A': 'grade_a',
+        'Grade B': 'grade_b',
+        'Grade C': 'grade_c',
+        'Rejected': 'rejected',
+        'QC Pending': 'pending'
+      };
 
-    // If became returned, delete WR if exists
-    if (status === 'Returned') {
-      setReceipts(prev => prev.filter(wr => wr.lotId !== lotId));
-    } else {
-      // update receipts
-      setReceipts(prev => prev.map(wr => {
-        if (wr.lotId === lotId) {
-          const cropRates = { Rice: 62.5, Wheat: 22.8, Soybean: 47.2, Onion: 18.5, Groundnut: 68 };
-          const lotVal = intakes.find(l => l.id === lotId);
-          const baseRate = cropRates[lotVal?.commodity] || 20;
-          const valuation = Math.round((lotVal?.quantity * baseRate * 1000) / 1000);
-          return { ...wr, grade, moisture, value: valuation };
+      const statusMapping = {
+        'Available': 'available',
+        'Reserved': 'reserved',
+        'QC Pending': 'qc_pending',
+        'In Transit': 'in_transit',
+        'Delivered': 'delivered',
+        'Returned': 'returned'
+      };
+
+      const mappedGrade = gradeMapping[grade] || 'pending';
+      const mappedStatus = statusMapping[status] || 'qc_pending';
+
+      // Create Quality Control Record
+      await qualityService.createQualityRecord({
+        lot_id: lot.dbId,
+        moisture_pct: parseFloat(moisture),
+        foreign_matter_pct: 0.45,
+        broken_grains_pct: 1.2,
+        grade: mappedGrade,
+        inspected_by: 'Govt Lab Officer',
+        notes: 'AGMARK certified'
+      });
+
+      // Update Lot
+      await inventoryService.updateLot(lot.dbId, {
+        lot_code: lot.id,
+        farmer_id: lot.dbFarmerId,
+        commodity_id: dbCommodities.find(c => c.name === lot.commodity)?.id || 1,
+        variety: lot.variety,
+        quantity_kg: lot.quantity,
+        bag_count: lot.bags,
+        moisture_pct: parseFloat(moisture),
+        grade: mappedGrade,
+        warehouse_id: dbWarehouses.find(w => w.name === lot.warehouse)?.id || 1,
+        zone: lot.zone,
+        status: mappedStatus,
+        remarks: lot.remarks,
+        intake_date: new Date().toISOString().split('T')[0]
+      });
+
+      // Create Warehouse Receipt if certified & not existing
+      if (mappedGrade !== 'rejected') {
+        const existingReceipt = receipts.find(r => r.lotId === lotId);
+        if (!existingReceipt) {
+          const expiryDate = new Date();
+          expiryDate.setMonth(expiryDate.getMonth() + 3);
+          const baseRate = dbCommodities.find(c => c.name === lot.commodity)?.base_rate || 22.0;
+
+          await inventoryService.createReceipt({
+            wr_code: `WR-2026-0${348 + receipts.length}`,
+            lot_id: lot.dbId,
+            farmer_id: lot.dbFarmerId,
+            issue_date: new Date().toISOString().split('T')[0],
+            expiry_date: expiryDate.toISOString().split('T')[0],
+            quantity_kg: lot.quantity,
+            grade: mappedGrade,
+            valuation: lot.quantity * baseRate
+          });
         }
-        return wr;
-      }));
+      }
+
+      await loadAllData();
+    } catch (err) {
+      console.error('Update grade failed:', err);
+      alert('Failed to update quality record on backend.');
     }
   };
 
-  const handleDispatchLot = (lotId) => {
-    setIntakes(prev => prev.map(lot => {
-      if (lot.id === lotId) {
-        return { ...lot, status: 'Reserved' };
-      }
-      return lot;
-    }));
+  const handleDispatchLot = async (lotId) => {
+    try {
+      const lot = intakes.find(l => l.id === lotId);
+      if (!lot) return;
 
-    // Add log
-    const logTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ', Today';
-    setActivities(prev => [
-      {
-        type: 'dispatch',
-        text: `Logistics — Lot <strong>${lotId}</strong> reserved & queued for Outbound Weighbridge gate-out.`,
-        time: logTime
-      },
-      ...prev
-    ]);
+      await inventoryService.updateLot(lot.dbId, {
+        lot_code: lot.id,
+        farmer_id: lot.dbFarmerId,
+        commodity_id: dbCommodities.find(c => c.name === lot.commodity)?.id || 1,
+        variety: lot.variety,
+        quantity_kg: lot.quantity,
+        bag_count: lot.bags,
+        moisture_pct: lot.moisture,
+        grade: lot.grade === 'Grade A' ? 'grade_a' : lot.grade === 'Grade B' ? 'grade_b' : 'pending',
+        warehouse_id: dbWarehouses.find(w => w.name === lot.warehouse)?.id || 1,
+        zone: lot.zone,
+        status: 'reserved',
+        remarks: lot.remarks,
+        intake_date: new Date().toISOString().split('T')[0]
+      });
+
+      await loadAllData();
+    } catch (err) {
+      console.error('Dispatch lot reservation failed:', err);
+    }
   };
 
-  const handleReserveLot = (lotId) => {
-    setIntakes(prev => prev.map(lot => {
-      if (lot.id === lotId) {
-        return { ...lot, status: 'Reserved' };
-      }
-      return lot;
-    }));
+  const handleReserveLot = async (lotId) => {
+    try {
+      const lot = intakes.find(l => l.id === lotId);
+      if (!lot) return;
+
+      await inventoryService.updateLot(lot.dbId, {
+        lot_code: lot.id,
+        farmer_id: lot.dbFarmerId,
+        commodity_id: dbCommodities.find(c => c.name === lot.commodity)?.id || 1,
+        variety: lot.variety,
+        quantity_kg: lot.quantity,
+        bag_count: lot.bags,
+        moisture_pct: lot.moisture,
+        grade: lot.grade === 'Grade A' ? 'grade_a' : lot.grade === 'Grade B' ? 'grade_b' : 'pending',
+        warehouse_id: dbWarehouses.find(w => w.name === lot.warehouse)?.id || 1,
+        zone: lot.zone,
+        status: 'reserved',
+        remarks: lot.remarks,
+        intake_date: new Date().toISOString().split('T')[0]
+      });
+
+      await loadAllData();
+    } catch (err) {
+      console.error('Reserve lot failed:', err);
+    }
   };
 
-  const handleAddDispatch = (newDispatch, lotId) => {
-    setDispatches(prev => [newDispatch, ...prev]);
+  const handleAddDispatch = async (newDispatch, lotId) => {
+    try {
+      const lot = intakes.find(l => l.id === lotId);
+      if (!lot) return;
 
-    // Fleetbase API Sync Integration
-    apiSim.triggerFleetbaseDispatch(newDispatch);
+      const qtyKg = parseFloat(newDispatch.quantity.replace(' MT', '')) * 1000 || lot.quantity;
 
-    // Lock lot status as Reserved
-    setIntakes(prev => prev.map(lot => {
-      if (lot.id === lotId) {
-        return { ...lot, status: 'Reserved' };
-      }
-      return lot;
-    }));
+      await dispatchService.createDispatch({
+        dn_code: newDispatch.id,
+        lot_id: lot.dbId,
+        dispatch_quantity_kg: qtyKg,
+        commodity_desc: newDispatch.commodity,
+        quantity_desc: newDispatch.quantity,
+        destination: newDispatch.destination,
+        vehicle_reg: newDispatch.vehicle,
+        status: 'in_transit',
+        dispatch_date: new Date().toISOString()
+      });
 
-    const logTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ', Today';
-    setActivities(prev => [
-      {
-        type: 'dispatch',
-        text: `Dispatch Gatepass <strong>${newDispatch.id}</strong> issued for vehicle <strong>${newDispatch.vehicle}</strong> carrying ${newDispatch.commodity}`,
-        time: logTime
-      },
-      ...prev
-    ]);
-
+      apiSim.triggerFleetbaseDispatch(newDispatch);
+      await loadAllData();
+    } catch (err) {
+      console.error('Add dispatch failed:', err);
+      alert('Failed to register dispatch on backend.');
+    }
   };
 
-  const handleApplyCollateral = (receiptId, bank, amount) => {
-    setReceipts(prev => prev.map(wr => {
-      if (wr.id === receiptId) {
-        return { ...wr, collateralStatus: 'Applied', pledgeBank: bank, loanAmount: amount };
-      }
-      return wr;
-    }));
+  const handleApplyCollateral = async (receiptId, bank, amount) => {
+    try {
+      const targetWR = receipts.find(wr => wr.id === receiptId);
+      if (!targetWR) return;
 
-    const logTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ', Today';
-    setActivities(prev => [
-      {
-        type: 'market',
-        text: `Financial Lien — Requested collateral credit loan of ₹${amount.toLocaleString()} against e-WR <strong>${receiptId}</strong> from ${bank}`,
-        time: logTime
-      },
-      ...prev
-    ]);
+      const receipt = await inventoryService.getReceipt(targetWR.dbId);
+      receipt.collateral_status = 'applied';
+      receipt.pledge_bank = bank;
+      receipt.loan_amount = parseFloat(amount);
 
-    // Simulate approval delay
-    setTimeout(() => {
-      setReceipts(currentReceipts => currentReceipts.map(wr => {
-        if (wr.id === receiptId) {
-          // Trigger approved state
-          return { ...wr, collateralStatus: 'Disbursed' };
+      await inventoryService.updateReceipt(targetWR.dbId, receipt);
+      await loadAllData();
+
+      // Simulate approved state after delay
+      setTimeout(async () => {
+        try {
+          const checkReceipt = await inventoryService.getReceipt(targetWR.dbId);
+          checkReceipt.collateral_status = 'disbursed';
+          await inventoryService.updateReceipt(targetWR.dbId, checkReceipt);
+          await loadAllData();
+        } catch (subErr) {
+          console.error('Delayed disbursal update failed:', subErr);
         }
-        return wr;
-      }));
-
-      setActivities(prev => [
-        {
-          type: 'market',
-          text: `💰 Lien Disbursed — NABARD approved pledge loan of ₹${amount.toLocaleString()} for e-WR <strong>${receiptId}</strong>. Account funded.`,
-          time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ', Today'
-        },
-        ...prev
-      ]);
-    }, 4000);
+      }, 4000);
+    } catch (err) {
+      console.error('Apply collateral failed:', err);
+      alert('Failed to apply collateral on backend.');
+    }
   };
 
-  const handleUpdateDispatch = (updatedDispatch) => {
-    setDispatches(prev => prev.map(d => d.id === updatedDispatch.id ? updatedDispatch : d));
+  const handleUpdateDispatch = async (updatedDispatch) => {
+    try {
+      const statusMapping = {
+        'Created': 'created',
+        'In Transit': 'in_transit',
+        'Delivered': 'delivered'
+      };
+
+      await dispatchService.updateDispatch(updatedDispatch.dbId, {
+        dn_code: updatedDispatch.id,
+        lot_id: intakes.find(l => l.id === updatedDispatch.lotId)?.dbId || 1,
+        dispatch_quantity_kg: updatedDispatch.quantityKg || 1000,
+        commodity_desc: updatedDispatch.commodity,
+        quantity_desc: updatedDispatch.quantity,
+        destination: updatedDispatch.destination,
+        vehicle_reg: updatedDispatch.vehicle,
+        status: statusMapping[updatedDispatch.status] || 'in_transit',
+        dispatch_date: new Date().toISOString()
+      });
+
+      await loadAllData();
+    } catch (err) {
+      console.error('Update dispatch failed:', err);
+    }
   };
 
-  if (loading) {
+  // Render Screens
+  if (authLoading || (currentUser && dataLoading)) {
     return (
       <div style={{
         display: 'flex',
@@ -612,10 +713,43 @@ export default function App() {
       }}>
         <div style={{ fontSize: '32px', marginBottom: '16px' }}>🌾</div>
         <div style={{ fontSize: '18px', fontWeight: 'bold' }}>Wakhar WMS</div>
-        <div style={{ fontSize: '14px', color: '#8A8070', marginTop: '8px' }}>Authenticating session...</div>
+        <div style={{ fontSize: '14px', color: '#8A8070', marginTop: '8px' }}>Syncing dashboard parameters...</div>
       </div>
     );
   }
+
+  if (dataError) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        background: '#FEFCF8',
+        color: '#1C1A14',
+        fontFamily: 'var(--font-sans)',
+        padding: '20px',
+        textAlign: 'center'
+      }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+        <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '8px' }}>Failed to Load Dashboard Data</h2>
+        <p style={{ color: 'var(--text2)', marginBottom: '24px', maxWidth: '400px' }}>{dataError}</p>
+        <button className="btn btn-primary" onClick={loadAllData}>
+          🔄 Retry Connection
+        </button>
+      </div>
+    );
+  }
+
+  const mappedFarmers = dbFarmers.map(f => ({
+    id: f.id.toString(),
+    farmerCode: f.farmer_code,
+    name: f.name,
+    phone: f.phone,
+    aadhaar: f.aadhaar,
+    village: f.village
+  }));
 
   return (
     <div className="app-container">
@@ -624,8 +758,6 @@ export default function App() {
         setActiveTab={setActiveTab}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
-        currentUser={currentUser}
-        setCurrentUser={setCurrentUser}
         alertsCount={highMoistureLots.length}
         onShowAlertsModal={() => setShowAlertsModal(true)}
         intakesCount={intakes.filter(i => i.status === 'QC Pending').length}
@@ -633,7 +765,6 @@ export default function App() {
         language={language}
         setLanguage={setLanguage}
         role={role}
-        setRole={setRole}
       >
         {activeTab === 'dashboard' && (
           <Dashboard
@@ -651,7 +782,7 @@ export default function App() {
           <Intake
             intakes={intakes}
             onAddIntake={handleAddIntake}
-            farmersList={initialFarmers}
+            farmersList={mappedFarmers}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             language={language}
@@ -662,7 +793,7 @@ export default function App() {
           <Intake
             intakes={intakes}
             onAddIntake={handleAddIntake}
-            farmersList={initialFarmers}
+            farmersList={mappedFarmers}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             isWizardOverride={true}
@@ -699,12 +830,9 @@ export default function App() {
             onUpdateGrade={handleUpdateGrade}
             searchQuery={searchQuery}
             language={language}
-            onAddActivity={(type, text) => {
-              const logTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ', Today';
-              setActivities(prev => [
-                { type, text, time: logTime },
-                ...prev
-              ]);
+            onAddActivity={async (type, text) => {
+              // Activity is auto-logged by backend or we let it refresh
+              await loadAllData();
             }}
           />
         )}
@@ -736,12 +864,8 @@ export default function App() {
             intakes={intakes}
             language={language}
             role={role}
-            onAddActivity={(type, text) => {
-              const logTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ', Today';
-              setActivities(prev => [
-                { type, text, time: logTime },
-                ...prev
-              ]);
+            onAddActivity={async () => {
+              await loadAllData();
             }}
           />
         )}
@@ -757,35 +881,38 @@ export default function App() {
           <FarmerPortal
             intakes={intakes}
             receipts={receipts}
-            farmersList={initialFarmers}
+            farmersList={mappedFarmers}
             onApplyCollateral={handleApplyCollateral}
             language={language}
             role={role}
             activeTab={activeTab}
-            onAmendReceipt={(receiptId, newQty, bags, val) => {
-              setReceipts(prev => prev.map(wr => {
-                if (wr.id === receiptId) {
-                  return { ...wr, quantity: newQty, bags: bags, value: val };
-                }
-                return wr;
-              }));
-              // Also find matching lot in intakes and amend its quantity and bags
-              const targetWR = receipts.find(wr => wr.id === receiptId);
-              if (targetWR) {
-                setIntakes(prev => prev.map(lot => {
-                  if (lot.id === targetWR.lotId) {
-                    return { ...lot, quantity: newQty, bags: bags };
+            onAmendReceipt={async (receiptId, newQty, bags, val) => {
+              try {
+                const targetWR = receipts.find(wr => wr.id === receiptId);
+                if (targetWR) {
+                  const diffKg = targetWR.quantity - newQty;
+                  if (diffKg > 0) {
+                    await inventoryService.withdrawReceipt(targetWR.dbId, diffKg);
+                  } else {
+                    const wr = await inventoryService.getReceipt(targetWR.dbId);
+                    wr.quantity_kg = newQty;
+                    wr.valuation = val;
+                    await inventoryService.updateReceipt(targetWR.dbId, wr);
+                    
+                    const lot = await inventoryService.getLot(wr.lot_id);
+                    lot.quantity_kg = newQty;
+                    lot.bag_count = bags;
+                    await inventoryService.updateLot(wr.lot_id, lot);
                   }
-                  return lot;
-                }));
+                  await loadAllData();
+                }
+              } catch (err) {
+                console.error('Amend receipt failed:', err);
+                alert('Failed to amend receipt on backend.');
               }
             }}
-            onAddActivity={(type, text) => {
-              const logTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ', Today';
-              setActivities(prev => [
-                { type, text, time: logTime },
-                ...prev
-              ]);
+            onAddActivity={async () => {
+              await loadAllData();
             }}
           />
         )}
@@ -796,12 +923,8 @@ export default function App() {
             onReserveLot={handleReserveLot}
             onAddDispatch={handleAddDispatch}
             language={language}
-            onAddActivity={(type, text) => {
-              const logTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ', Today';
-              setActivities(prev => [
-                { type, text, time: logTime },
-                ...prev
-              ]);
+            onAddActivity={async () => {
+              await loadAllData();
             }}
           />
         )}
@@ -825,6 +948,144 @@ export default function App() {
 
         {activeTab === 'integrations' && (
           <Integrations language={language} />
+        )}
+
+        {/* Dynamic renders for FPO Staff Scanner / Admin User / FPO Management / Market Partner Payments */}
+        {activeTab === 'scanner' && (
+          <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <h2 className="section-title">Intake Barcode Scanner</h2>
+            <div className="card" style={{ maxWidth: '480px', margin: '0 auto', textAlign: 'center', padding: '40px 20px', background: '#1a1a1a', color: '#fff' }}>
+              <span style={{ fontSize: '48px' }}>📷</span>
+              <h3 style={{ margin: '16px 0 8px', color: 'white' }}>Scan Driver Gatepass QR</h3>
+              <p style={{ color: '#ccc', fontSize: '13px', marginBottom: '24px' }}>Position the coupon code under the camera guidelines to scan.</p>
+              <div style={{ width: '200px', height: '200px', border: '3px solid var(--green)', margin: '0 auto 24px', position: 'relative', background: 'rgba(255,255,255,0.05)' }}>
+                <div style={{ position: 'absolute', top: '10px', left: '10px', right: '10px', bottom: '10px', border: '1px dashed rgba(255,255,255,0.2)' }} />
+              </div>
+              <button className="btn btn-primary" onClick={() => alert('Simulating scanner beep... decoded BK-0081')}>Simulate Camera Scan</button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'users' && (
+          <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 className="section-title">System User Management</h2>
+              <button className="btn btn-primary" onClick={() => alert('Feature to create new user profile')}>+ Create User</button>
+            </div>
+            <div className="card">
+              <div className="table-responsive">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>User ID</th>
+                      <th>Full Name</th>
+                      <th>Phone</th>
+                      <th>Email</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dbUsers.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text3)' }}>Loading system users...</td>
+                      </tr>
+                    ) : (
+                      dbUsers.map(usr => (
+                        <tr key={usr.id}>
+                          <td><strong>USR-0{usr.id}</strong></td>
+                          <td>{usr.full_name}</td>
+                          <td>{usr.phone}</td>
+                          <td>{usr.email || 'N/A'}</td>
+                          <td><span className="badge badge-teal">{usr.role}</span></td>
+                          <td><span className={`badge ${usr.is_active ? 'badge-green' : 'badge-red'}`}>{usr.is_active ? 'Active' : 'Deactivated'}</span></td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'fpos' && (
+          <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 className="section-title">FPO Network Management</h2>
+              <button className="btn btn-primary" onClick={() => alert('Feature to create FPO profile')}>+ Register FPO</button>
+            </div>
+            <div className="card">
+              <div className="table-responsive">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>FPO ID</th>
+                      <th>FPO Name</th>
+                      <th>FPO Code</th>
+                      <th>Region / District</th>
+                      <th>Contact Phone</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dbFpos.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text3)' }}>Loading FPOs...</td>
+                      </tr>
+                    ) : (
+                      dbFpos.map(fpo => (
+                        <tr key={fpo.id}>
+                          <td><strong>{fpo.id}</strong></td>
+                          <td>{fpo.name}</td>
+                          <td><span className="badge badge-teal">{fpo.code}</span></td>
+                          <td>{fpo.region} / {fpo.district}</td>
+                          <td>{fpo.contact_phone || 'N/A'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'payments' && (
+          <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <h2 className="section-title">Purchase Order Payments & Settlements</h2>
+            <div className="card">
+              <div className="table-responsive">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>PO Reference</th>
+                      <th>Escrow Bank</th>
+                      <th>Valuation</th>
+                      <th>Settlement Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {receipts.filter(r => r.collateralStatus !== 'None').map(r => (
+                      <tr key={r.id}>
+                        <td><strong>PO-2026-{r.id.split('-').pop()}</strong></td>
+                        <td>{r.pledgeBank || 'NABARD Escrow'}</td>
+                        <td>₹{r.value.toLocaleString()}</td>
+                        <td><span className="badge badge-green">Settled / Funded</span></td>
+                      </tr>
+                    ))}
+                    {receipts.filter(r => r.collateralStatus === 'None').map(r => (
+                      <tr key={r.id}>
+                        <td><strong>PO-2026-{r.id.split('-').pop()}</strong></td>
+                        <td>None / Direct Cash</td>
+                        <td>₹{r.value.toLocaleString()}</td>
+                        <td><span className="badge badge-amber">Direct Payout Pending</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         )}
       </Layout>
 

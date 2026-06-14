@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { useAuth } from '../../hooks/useAuth';
 import '../landing.css';
 
 export default function LoginPage({ role, icon, route }) {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [form, setForm] = useState({ id: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -21,20 +22,7 @@ export default function LoginPage({ role, icon, route }) {
     setLoading(true);
     setError('');
     try {
-      const response = await axios.post('http://localhost:8000/api/auth/login', {
-        phone: form.id,
-        password: form.password
-      });
-      
-      const { access_token, user } = response.data;
-      localStorage.setItem('wakhar_access_token', access_token);
-      
-      // Map roles fpo_manager/fpo_staff to fpo
-      const mappedRole = (user.role === 'fpo_manager' || user.role === 'fpo_staff') ? 'fpo' : user.role;
-      localStorage.setItem('role', mappedRole);
-      
-      const defaultTab = mappedRole === 'farmer' ? 'farmer' : 'dashboard';
-      navigate(`/${mappedRole}/${defaultTab}`);
+      await login(form.id, form.password);
     } catch (err) {
       console.error('Login failed:', err);
       if (err.response && err.response.data && err.response.data.detail) {
