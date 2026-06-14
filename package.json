@@ -16,6 +16,7 @@
     "react-native-web": "^0.21.0"
   },
   "dependencies": {
+    "@rolldown/binding-linux-x64-gnu": "^1.1.1",
     "react-native-worklets": "0.5.1"
   }
 }
