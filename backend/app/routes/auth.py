@@ -12,7 +12,7 @@ from typing import List
 from app.database import get_db
 from app.models import FPO, Farmer
 from app.models.user import User
-from app.schemas.auth import LoginRequest, TokenResponse, UserResponse, RegisterRequest, FPOResponse
+from app.schemas.auth import LoginRequest, TokenResponse, UserResponse, RegisterRequest, FPOResponse, ChangePasswordRequest
 
 # Load environment variables
 dotenv_path = Path(__file__).resolve().parent.parent.parent / '.env'
@@ -130,6 +130,19 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
         "user": user
     }
 
+
+@router.post("/change-password")
+def change_password(request: ChangePasswordRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not verify_password(request.old_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect old password"
+        )
+    
+    current_user.password_hash = get_password_hash(request.new_password)
+    db.commit()
+    return {"message": "Password updated successfully"}
+
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
     return current_user
@@ -210,7 +223,11 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
             name=request.full_name,
             phone=prefix_phone,
             fpo_id=fpo_id,
-            user_id=user.id
+            user_id=user.id,
+            aadhaar=request.aadhaar,
+            village=request.village,
+            bank_account=request.bank_account,
+            bank_ifsc=request.bank_ifsc
         )
         db.add(farmer)
         

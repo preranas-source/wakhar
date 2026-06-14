@@ -152,6 +152,17 @@ export default function FarmerProfileScreen() {
 
             <Divider />
 
+            {/* Change Password Row */}
+            <List.Item
+              title="Change Password"
+              titleStyle={{ color: colors.text, fontWeight: '600' }}
+              left={props => <List.Icon {...props} icon="lock-reset" color={colors.primary} />}
+              right={props => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => router.push('/(farmer)/change-password' as any)}
+            />
+
+            <Divider />
+
             {/* Logout Row */}
             <List.Item
               title="Logout"

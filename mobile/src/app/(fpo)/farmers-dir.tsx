@@ -99,7 +99,11 @@ export default function FPOFarmersScreen() {
               : 'FM';
 
             return (
-              <Card style={[styles.card, { backgroundColor: colors.card }]} elevation={1}>
+              <Card 
+                style={[styles.card, { backgroundColor: colors.card }]} 
+                elevation={1}
+                onPress={() => router.push(`/(fpo)/farmer/${farmer.id}` as any)}
+              >
                 <Card.Content style={styles.cardContent}>
                   <Avatar.Text
                     size={46}
@@ -130,6 +134,16 @@ export default function FPOFarmersScreen() {
           }}
         />
       )}
+      
+      <IconButton
+        icon="plus"
+        mode="contained"
+        containerColor={colors.primary}
+        iconColor={colors.onPrimary}
+        size={28}
+        style={styles.fab}
+        onPress={() => router.push('/(fpo)/farmer-register' as any)}
+      />
     </SafeAreaView>
   );
 }
@@ -153,4 +167,5 @@ const styles = StyleSheet.create({
   emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: Spacing['5xl'] },
   emptyEmoji: { fontSize: 40, marginBottom: Spacing.md },
   emptyText: { fontSize: FontSize.md, fontWeight: '600' },
+  fab: { position: 'absolute', margin: 16, right: 0, bottom: 0, borderRadius: 16 },
 });

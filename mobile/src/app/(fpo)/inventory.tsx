@@ -70,7 +70,9 @@ export default function FPOInventoryScreen() {
     // Get lots matching commodity and filter
     const matchingLots = lots.filter(lot => {
       if (lot.commodity_id !== comm.id) return false;
-      if (selectedFilter === 'all') return true;
+      if (selectedFilter === 'all') {
+        return !['in_transit', 'delivered', 'withdrawn'].includes(lot.status);
+      }
       return lot.status === selectedFilter;
     });
 
@@ -96,12 +98,19 @@ export default function FPOInventoryScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Stock Ledger
-        </Text>
-        <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
-          Current warehouse inventory overview
-        </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>
+              Stock Ledger
+            </Text>
+            <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
+              Current warehouse inventory overview
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => router.push('/(fpo)/audit' as any)} style={{ backgroundColor: colors.primary + '15', padding: Spacing.sm, borderRadius: BorderRadius.sm }}>
+            <Text style={{ color: colors.primary, fontSize: 12, fontWeight: '700' }}>Physical Audit</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Filter chips */}
@@ -141,6 +150,44 @@ export default function FPOInventoryScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent}>
+          {/* Capacity Warnings */}
+          {warehouses.length > 0 && (
+            <View style={{ marginBottom: Spacing.xl }}>
+              <Text style={{ fontSize: FontSize.md, fontWeight: '700', color: colors.text, marginBottom: Spacing.sm }}>
+                Capacity Status
+              </Text>
+              {warehouses.map(wh => {
+                const capacity = Number(wh.capacity_mt) || 1;
+                const stock = Number(wh.current_stock_mt) || 0;
+                const progress = stock / capacity;
+                const isWarning = progress > 0.85;
+                const isCritical = progress > 0.95;
+                const barColor = isCritical ? colors.error : (isWarning ? colors.warning : colors.primary);
+
+                return (
+                  <Card key={wh.id} style={[{ backgroundColor: colors.card, marginBottom: Spacing.sm }]} elevation={0}>
+                    <Card.Content style={{ paddingVertical: Spacing.md }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
+                        <Text style={{ fontSize: FontSize.sm, fontWeight: '600', color: colors.text }}>{wh.name}</Text>
+                        <Text style={{ fontSize: FontSize.xs, color: isCritical ? colors.error : colors.textSecondary, fontWeight: isCritical ? '700' : 'normal' }}>
+                          {stock.toFixed(1)} / {capacity.toFixed(1)} MT
+                        </Text>
+                      </View>
+                      <View style={{ height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: 'hidden' }}>
+                        <View style={{ width: `${Math.min(progress * 100, 100)}%`, height: '100%', backgroundColor: barColor }} />
+                      </View>
+                      {isWarning && (
+                        <Text style={{ fontSize: 10, color: barColor, marginTop: 4 }}>
+                          {isCritical ? 'Critical: Warehouse is almost full!' : 'Warning: Approaching maximum capacity.'}
+                        </Text>
+                      )}
+                    </Card.Content>
+                  </Card>
+                );
+              })}
+            </View>
+          )}
+
           {ledgerData.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyEmoji}>📦</Text>

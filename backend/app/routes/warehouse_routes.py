@@ -18,7 +18,10 @@ def list_items(skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500)
         q = q.filter(Warehouse.fpo_id == fpo_id)
     warehouses = q.offset(skip).limit(limit).all()
     for w in warehouses:
-        total_kg = db.query(func.sum(CommodityLot.quantity_kg)).filter(CommodityLot.warehouse_id == w.id).scalar() or 0.0
+        total_kg = db.query(func.sum(CommodityLot.quantity_kg)).filter(
+            CommodityLot.warehouse_id == w.id,
+            CommodityLot.status.not_in(['in_transit', 'delivered', 'withdrawn'])
+        ).scalar() or 0.0
         w.current_stock_mt = float(total_kg) / 1000.0
     return warehouses
 
@@ -27,7 +30,10 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
     item = db.query(Warehouse).filter(Warehouse.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
-    total_kg = db.query(func.sum(CommodityLot.quantity_kg)).filter(CommodityLot.warehouse_id == item.id).scalar() or 0.0
+    total_kg = db.query(func.sum(CommodityLot.quantity_kg)).filter(
+        CommodityLot.warehouse_id == item.id,
+        CommodityLot.status.not_in(['in_transit', 'delivered', 'withdrawn'])
+    ).scalar() or 0.0
     item.current_stock_mt = float(total_kg) / 1000.0
     return item
 

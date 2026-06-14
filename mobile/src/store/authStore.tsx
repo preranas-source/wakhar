@@ -89,9 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data && data.access_token && data.user) {
         const { access_token, user } = data;
         await AsyncStorage.setItem('userToken', access_token);
-        // Force API interceptor to use the new token immediately
-        api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
-
+        
         const { fpo, farmerProfile } = await loadDependencies(user);
 
         setState({
@@ -113,7 +111,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await AsyncStorage.removeItem('userToken');
-    delete api.defaults.headers.common['Authorization'];
     setState({
       user: null,
       farmerProfile: null,

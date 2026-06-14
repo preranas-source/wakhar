@@ -7,7 +7,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { Text, Card, Surface, IconButton, Button, Divider, Portal, Dialog } from 'react-native-paper';
+import { Text, Card, Surface, IconButton, Button, Divider, Portal, Dialog, TextInput } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
@@ -33,6 +33,8 @@ export default function FarmerReceiptDetailScreen() {
   const [comm, setComm] = useState<any>(null);
   const [wh, setWh] = useState<any>(null);
   const [dialogVisible, setDialogVisible] = useState(false);
+  const [withdrawQty, setWithdrawQty] = useState('');
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -40,6 +42,7 @@ export default function FarmerReceiptDetailScreen() {
         const { data: wrData } = await api.get(`/api/warehouse-receipts/${id}`);
         setWr(wrData);
         if (wrData) {
+          setWithdrawQty(wrData.quantity_kg.toString());
           const { data: lotData } = await api.get(`/api/lots/${wrData.lot_id}`);
           setLot(lotData);
           
@@ -95,28 +98,36 @@ export default function FarmerReceiptDetailScreen() {
   };
 
   const confirmWithdrawal = async () => {
-    setDialogVisible(false);
+    if (!withdrawQty || isNaN(Number(withdrawQty)) || Number(withdrawQty) <= 0 || Number(withdrawQty) > Number(wr.quantity_kg)) {
+      Alert.alert('Error', 'Please enter a valid withdrawal quantity.');
+      return;
+    }
+
+    setIsWithdrawing(true);
     try {
+      await api.post(`/api/warehouse-receipts/${wr.id}/withdraw`, {
+        withdraw_kg: Number(withdrawQty)
+      });
+
       // Create Activity Log in database to notify FPO
       const activityPayload = {
         type: 'system',
-        message: `Stock withdrawal requested: Receipt ${wr.wr_code} by farmer ${farmerProfile?.name || 'Suresh Patil'}`,
+        message: `Stock withdrawal requested: Receipt ${wr.wr_code} by farmer ${farmerProfile?.name || 'Farmer'}`,
         reference: `Receipt ID: ${wr.id}`
       };
       await api.post('/api/activity-logs/', activityPayload);
 
+      setDialogVisible(false);
       Alert.alert(
         'Request Submitted',
-        'Your request for withdrawal has been submitted to the FPO. Please visit the warehouse with Gate Pass Token to collect your stock.',
+        'Your request for withdrawal has been processed. Please visit the warehouse with your Digital Gate Pass to collect your stock.',
         [{ text: 'OK', onPress: () => router.replace('/(farmer)/receipts' as any) }]
       );
-    } catch (err) {
-      console.error('Failed to notify FPO of withdrawal request', err);
-      Alert.alert(
-        'Request Submitted',
-        'Your request for withdrawal has been submitted to the FPO. Please visit the warehouse with Gate Pass Token to collect your stock.',
-        [{ text: 'OK', onPress: () => router.replace('/(farmer)/receipts' as any) }]
-      );
+    } catch (err: any) {
+      console.error('Failed to process withdrawal', err);
+      Alert.alert('Error', err.response?.data?.detail || 'Failed to process withdrawal request.');
+    } finally {
+      setIsWithdrawing(false);
     }
   };
 
@@ -220,16 +231,24 @@ export default function FarmerReceiptDetailScreen() {
       {/* Confirmation Dialog */}
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={() => setDialogVisible(false)} style={{ backgroundColor: colors.card }}>
-          <Dialog.Title style={{ color: colors.text }}>Confirm Stock Withdrawal</Dialog.Title>
+          <Dialog.Title style={{ color: colors.text }}>Request Stock Withdrawal</Dialog.Title>
           <Dialog.Content>
-            <Text style={{ color: colors.textSecondary, lineHeight: 20 }}>
-              Are you sure you want to request withdrawal of {formatWeight(wr.quantity_kg)} of {comm ? comm.name : 'commodity'}? 
-              This will mark the Warehouse Receipt as WITHDRAWN and generate a release gate pass.
+            <Text style={{ color: colors.textSecondary, lineHeight: 20, marginBottom: Spacing.md }}>
+              Enter the amount of stock you wish to withdraw from this receipt. Maximum available: {formatWeight(wr.quantity_kg)}.
             </Text>
+            <TextInput
+              label="Withdrawal Quantity (kg)"
+              value={withdrawQty}
+              onChangeText={setWithdrawQty}
+              keyboardType="numeric"
+              mode="outlined"
+              outlineColor={colors.border}
+              activeOutlineColor={colors.primary}
+            />
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setDialogVisible(false)} textColor={colors.textSecondary}>Cancel</Button>
-            <Button onPress={confirmWithdrawal} textColor={colors.primary}>Confirm</Button>
+            <Button onPress={() => setDialogVisible(false)} textColor={colors.textSecondary} disabled={isWithdrawing}>Cancel</Button>
+            <Button onPress={confirmWithdrawal} textColor={colors.primary} loading={isWithdrawing} disabled={isWithdrawing}>Confirm Withdrawal</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>

@@ -17,6 +17,7 @@ from app.routes.dispatch_note_routes import router as dispatch_note_router
 from app.routes.purchase_order_routes import router as purchase_order_router
 from app.routes.activity_log_routes import router as activity_log_router
 from app.routes.dashboard_routes import router as dashboard_router
+from app.routes.audit_routes import router as audit_router
 
 app = FastAPI(title="Wakhar WMS API", version="1.0.0")
 
@@ -42,6 +43,7 @@ app.include_router(dispatch_note_router)
 app.include_router(purchase_order_router)
 app.include_router(activity_log_router)
 app.include_router(dashboard_router)
+app.include_router(audit_router)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

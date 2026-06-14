@@ -151,6 +151,27 @@ export default function FPOLayout() {
           href: null,
         }}
       />
+
+      <Tabs.Screen
+        name="farmer-register"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="farmer/[id]"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="audit"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

@@ -90,6 +90,12 @@ export default function FarmerLayout() {
           tabBarIcon: () => <TabIcon emoji="👤" />,
         }}
       />
+      <Tabs.Screen
+        name="change-password"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

@@ -19,16 +19,26 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if payload is None:
         raise credentials_exception
         
-    user_id: str = payload.get("sub")
-    if user_id is None:
+    sub_val = payload.get("sub")
+    if sub_val is None:
         raise credentials_exception
         
+    user = None
     try:
-        user_id_int = int(user_id)
+        user_id_int = int(sub_val)
+        user = db.query(User).filter(User.id == user_id_int).first()
     except ValueError:
-        raise credentials_exception
-        
-    user = db.query(User).filter(User.id == user_id_int).first()
+        pass
+
+    if user is None:
+        clean_phone = str(sub_val).replace(" ", "").replace("-", "")
+        prefix_phone = "+91" + clean_phone if (len(clean_phone) == 10 and not clean_phone.startswith("+")) else clean_phone
+        user = db.query(User).filter(
+            (User.phone == str(sub_val)) | 
+            (User.phone == clean_phone) |
+            (User.phone == prefix_phone)
+        ).first()
+
     if user is None:
         raise credentials_exception
         

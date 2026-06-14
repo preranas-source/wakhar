@@ -58,7 +58,11 @@ export default function FPODispatchScreen() {
           api.get('/api/lots?status=available'),
           api.get('/api/commodities')
         ]);
-        setAvailableLots(lotsRes.data);
+        
+        const sortedLots = lotsRes.data.sort((a: any, b: any) => 
+          new Date(a.intake_date).getTime() - new Date(b.intake_date).getTime()
+        );
+        setAvailableLots(sortedLots);
         setCommodities(commRes.data);
         
         if (lotId) {
@@ -319,8 +323,9 @@ export default function FPODispatchScreen() {
             <FlatList
               data={availableLots}
               keyExtractor={(item) => item.id.toString()}
-              renderItem={({ item }) => {
+              renderItem={({ item, index }) => {
                 const comm = getCommodityById(item.commodity_id);
+                const isFifoRecommended = index === 0;
                 return (
                   <TouchableOpacity
                     style={styles.pickerItem}
@@ -329,9 +334,16 @@ export default function FPODispatchScreen() {
                       setLotPickerVisible(false);
                     }}
                   >
-                    <Text style={{ color: colors.text, fontWeight: '700' }}>{item.lot_code}</Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                      {comm ? comm.name : ''} | {item.quantity_kg} kg | Grade: {item.grade.replace('grade_', '').toUpperCase()}
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={{ color: colors.text, fontWeight: '700' }}>{item.lot_code}</Text>
+                      {isFifoRecommended && (
+                        <Surface style={{ backgroundColor: colors.primary + '15', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }} elevation={0}>
+                          <Text style={{ color: colors.primary, fontSize: 9, fontWeight: '700' }}>⭐ FIFO Recommended</Text>
+                        </Surface>
+                      )}
+                    </View>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
+                      {comm ? comm.name : ''} | {item.quantity_kg} kg | Grade: {item.grade.replace('grade_', '').toUpperCase()} | Intake: {new Date(item.intake_date).toLocaleDateString()}
                     </Text>
                   </TouchableOpacity>
                 );

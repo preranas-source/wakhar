@@ -34,6 +34,10 @@ class RegisterRequest(BaseModel):
     email: Optional[str] = Field(None, description="Optional email address")
     role: UserRole = Field(..., description="User access role")
     fpo_id: Optional[int] = Field(None, description="Optional associated FPO ID")
+    aadhaar: Optional[str] = Field(None, description="Aadhar number")
+    village: Optional[str] = Field(None, description="Farmer village")
+    bank_account: Optional[str] = Field(None, description="Bank account number")
+    bank_ifsc: Optional[str] = Field(None, description="Bank IFSC code")
 
 class FPOResponse(BaseModel):
     id: int
@@ -42,3 +46,7 @@ class FPOResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str

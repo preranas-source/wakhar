@@ -62,6 +62,66 @@ def update_item(item_id: int, data: WarehouseReceiptCreate, db: Session = Depend
     db.refresh(item)
     return item
 
+from pydantic import BaseModel
+class WithdrawRequest(BaseModel):
+    withdraw_kg: float
+
+from app.models.stock_movement import StockMovement, MovementType
+from datetime import datetime, timezone
+import random
+
+@router.post("/{item_id}/withdraw", response_model=WarehouseReceiptResponse)
+def withdraw_receipt(item_id: int, data: WithdrawRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    item = db.query(WarehouseReceipt).filter(WarehouseReceipt.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Warehouse Receipt not found")
+
+    if item.status != "active":
+        raise HTTPException(status_code=400, detail="Cannot withdraw from an inactive receipt")
+
+    if data.withdraw_kg <= 0 or data.withdraw_kg > float(item.quantity_kg):
+        raise HTTPException(status_code=400, detail="Invalid withdrawal amount")
+
+    lot = db.query(CommodityLot).filter(CommodityLot.id == item.lot_id).first()
+    warehouse = db.query(Warehouse).filter(Warehouse.id == lot.warehouse_id).first() if lot else None
+
+    # Subtract qty
+    item.quantity_kg = float(item.quantity_kg) - data.withdraw_kg
+    if lot:
+        lot.quantity_kg = float(lot.quantity_kg) - data.withdraw_kg
+        
+        # Adjust warehouse stock
+        if warehouse:
+            warehouse.current_stock_mt = float(warehouse.current_stock_mt) - (data.withdraw_kg / 1000.0)
+
+        # Record movement
+        mov = StockMovement(
+            movement_code=f"MOV-W-{datetime.now().strftime('%Y%m')}-{random.randint(1000, 9999)}",
+            type=MovementType.dispatch,
+            lot_id=lot.id,
+            from_warehouse_id=warehouse.id if warehouse else None,
+            to_warehouse_id=None,
+            quantity_kg=data.withdraw_kg,
+            performed_by_id=current_user.id,
+            movement_date=datetime.now(timezone.utc),
+            remarks="Farmer Withdrawal via Warehouse Receipt"
+        )
+        db.add(mov)
+
+        # Update valuation
+        commodity = db.query(Commodity).filter(Commodity.id == lot.commodity_id).first()
+        if commodity:
+            item.valuation = float(item.quantity_kg) * float(commodity.base_rate)
+
+        # Status check
+        if item.quantity_kg == 0:
+            item.status = "withdrawn"
+            lot.status = "withdrawn"
+
+    db.commit()
+    db.refresh(item)
+    return item
+
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_item(item_id: int, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager']))):
     item = db.query(WarehouseReceipt).filter(WarehouseReceipt.id == item_id).first()

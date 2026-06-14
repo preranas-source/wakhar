@@ -13,6 +13,7 @@ from .stock_movement import StockMovement, MovementType
 from .dispatch_note import DispatchNote, DispatchStatus, DispatchTimelineEvent
 from .purchase_order import PurchaseOrder, POStatus, PaymentStatus
 from .activity_log import ActivityLog, ActivityType
+from .stock_audit import StockAudit, AuditStatus
 
 __all__ = [
     "Base",
@@ -43,4 +44,6 @@ __all__ = [
     "PaymentStatus",
     "ActivityLog",
     "ActivityType",
+    "StockAudit",
+    "AuditStatus",
 ]

@@ -21,6 +21,7 @@ import {
 } from '@/utils/formatters';
 import { LotStatus } from '@/types';
 import api from '@/utils/api';
+import WarehouseLayoutSelector from '@/components/WarehouseLayoutSelector';
 
 export default function FPOLotDetailScreen() {
   const scheme = useColorScheme();
@@ -38,6 +39,18 @@ export default function FPOLotDetailScreen() {
   const [wr, setWr] = useState<any>(null);
   const [movements, setMovements] = useState<any[]>([]);
   const [isGeneratingWR, setIsGeneratingWR] = useState(false);
+  const [layoutSelectorVisible, setLayoutSelectorVisible] = useState(false);
+
+  const handleUpdateLayout = async (zoneStr: string) => {
+    try {
+      await api.put(`/api/lots/${id}`, { ...lot, zone: zoneStr });
+      setLot({ ...lot, zone: zoneStr });
+      setLayoutSelectorVisible(false);
+    } catch (err) {
+      console.error('Failed to update zone', err);
+      Alert.alert('Error', 'Could not update storage location.');
+    }
+  };
 
   const handleGenerateWR = async () => {
     setIsGeneratingWR(true);
@@ -203,11 +216,16 @@ export default function FPOLotDetailScreen() {
         {/* Storage location */}
         <Card style={[styles.card, { backgroundColor: colors.card }]} elevation={1}>
           <Card.Content>
-            <Text style={[styles.cardSectionTitle, { color: colors.text }]}>
-              Storage Location
-            </Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.cardSectionTitle, { color: colors.text, marginBottom: 0 }]}>
+                Storage Location
+              </Text>
+              <Button mode="text" onPress={() => setLayoutSelectorVisible(true)} textColor={colors.primary} compact>
+                Edit Layout
+              </Button>
+            </View>
             <InfoRow label="Warehouse" value={wh ? wh.name : 'N/A'} />
-            <InfoRow label="Zone / Rack" value={lot.zone || 'N/A'} />
+            <InfoRow label="Zone / Rack" value={lot.zone || 'Unassigned'} />
             <InfoRow label="Intake Flow" value={lot.intake_type.replace('_', ' ').toUpperCase()} />
             <InfoRow label="Intake Date" value={formatDate(lot.intake_date)} />
           </Card.Content>
@@ -360,6 +378,13 @@ export default function FPOLotDetailScreen() {
           </Button>
         )}
       </ScrollView>
+
+      <WarehouseLayoutSelector
+        visible={layoutSelectorVisible}
+        onDismiss={() => setLayoutSelectorVisible(false)}
+        onSelect={handleUpdateLayout}
+        currentZone={lot.zone || ''}
+      />
     </SafeAreaView>
   );
 }
