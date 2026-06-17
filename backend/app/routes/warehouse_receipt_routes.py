@@ -33,7 +33,7 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Not found")
     return item
 
-from app.models import WarehouseReceipt, CommodityLot, Commodity
+from app.models import WarehouseReceipt, CommodityLot, Commodity, Warehouse
 
 @router.post("/", response_model=WarehouseReceiptResponse, status_code=status.HTTP_201_CREATED)
 def create_item(data: WarehouseReceiptCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff']))):
@@ -52,10 +52,28 @@ def create_item(data: WarehouseReceiptCreate, db: Session = Depends(get_db), cur
     return item
 
 @router.put("/{item_id}", response_model=WarehouseReceiptResponse)
-def update_item(item_id: int, data: WarehouseReceiptCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff']))):
+def update_item(item_id: int, data: WarehouseReceiptCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff', 'farmer']))):
     item = db.query(WarehouseReceipt).filter(WarehouseReceipt.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
+        
+    if current_user.role.value == "farmer":
+        # Ensure the farmer owns the receipt
+        if not current_user.farmer_profile or item.farmer_id != current_user.farmer_profile.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to modify this receipt"
+            )
+        # Prevent farmer from modifying core parameters (valuation, grade, quantity, etc.)
+        if (item.wr_code != data.wr_code or 
+            float(item.quantity_kg) != float(data.quantity_kg) or 
+            item.grade != data.grade or 
+            float(item.valuation) != float(data.valuation)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Farmers can only apply for pledge loans and cannot modify weight, grade, or valuation"
+            )
+            
     for key, value in data.model_dump(exclude_unset=True).items():
         setattr(item, key, value)
     db.commit()

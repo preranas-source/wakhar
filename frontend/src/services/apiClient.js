@@ -31,7 +31,7 @@ export const setupInterceptors = (onUnauthorized, onForbidden) => {
           if (onForbidden) {
             onForbidden();
           } else {
-            alert(`Permission Denied: ${data?.detail || 'You do not have access to this resource.'}`);
+            alert(`Permission Denied on ${error.config.url}: ${data?.detail || 'You do not have access to this resource.'}`);
             window.location.href = '/access-denied';
           }
         } else if (status === 404) {

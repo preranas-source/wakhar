@@ -76,7 +76,7 @@ def create_item(data: CommodityLotCreate, db: Session = Depends(get_db), current
     return item
 
 @router.put("/{item_id}", response_model=CommodityLotResponse)
-def update_item(item_id: int, data: CommodityLotCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff']))):
+def update_item(item_id: int, data: CommodityLotCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff', 'market_partner']))):
     item = db.query(CommodityLot).filter(CommodityLot.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
