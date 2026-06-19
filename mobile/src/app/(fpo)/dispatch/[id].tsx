@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
 import { formatDate, formatDateTime } from '@/utils/formatters';
+import { useTranslation } from '@/i18n';
 import { DispatchStatus } from '@/types';
 import api from '@/utils/api';
 
@@ -20,6 +21,7 @@ export default function FPODispatchDetailScreen() {
   const colors = getColors(scheme);
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
   const [dn, setDn] = useState<any>(null);
@@ -60,7 +62,7 @@ export default function FPODispatchDetailScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: colors.error }]}>
-            Dispatch note not found.
+            {t('common.noData')} (Dispatch note not found)
           </Text>
           <IconButton icon="arrow-left" size={24} onPress={() => router.back()} />
         </View>
@@ -73,7 +75,7 @@ export default function FPODispatchDetailScreen() {
       'Confirm Delivery e-POD',
       'Sign and verify digital Proof of Delivery for this shipment?',
       [
-        { text: 'Cancel' },
+        { text: t('common.cancel') },
         {
           text: 'Sign & Confirm',
           onPress: async () => {
@@ -136,7 +138,7 @@ export default function FPODispatchDetailScreen() {
       'Confirm Start Transit',
       'Mark this shipment as In Transit and record vehicle Gate Out?',
       [
-        { text: 'Cancel' },
+        { text: t('common.cancel') },
         {
           text: 'Confirm Gate Out',
           onPress: async () => {
@@ -165,7 +167,7 @@ export default function FPODispatchDetailScreen() {
               Alert.alert('Vehicle Dispatched', 'The shipment is now marked as IN TRANSIT.');
             } catch (err) {
               console.error('Failed to start transit', err);
-              Alert.alert('Error', 'Could not start transit.');
+              Alert.alert(t('common.error') || 'Error', 'Could not start transit.');
             }
           },
         },
@@ -196,7 +198,7 @@ export default function FPODispatchDetailScreen() {
       <View style={styles.header}>
         <IconButton icon="arrow-left" iconColor={colors.text} size={24} onPress={() => router.back()} />
         <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Shipment Tracking
+          {t('fpo.dispatchDetail')}
         </Text>
       </View>
 
@@ -219,7 +221,7 @@ export default function FPODispatchDetailScreen() {
               {dn.commodity_desc}
             </Text>
             <Text style={[styles.qtyText, { color: colors.primary, fontWeight: '700' }]}>
-              Quantity: {dn.quantity_desc}
+              {t('lot.quantity')}: {dn.quantity_desc}
             </Text>
           </Card.Content>
         </Card>
@@ -230,12 +232,12 @@ export default function FPODispatchDetailScreen() {
             <Text style={[styles.cardSectionTitle, { color: colors.text }]}>
               Transport Details
             </Text>
-            <InfoRow label="Destination" value={dn.destination} />
-            <InfoRow label="Vehicle Number" value={dn.vehicle_reg} />
-            <InfoRow label="e-Way Bill No." value={dn.e_way_bill_no || '—'} />
+            <InfoRow label={t('dispatch.destination')} value={dn.destination} />
+            <InfoRow label={t('dispatch.vehicle')} value={dn.vehicle_reg} />
+            <InfoRow label={t('fpo.eWayBill')} value={dn.e_way_bill_no || '—'} />
             <InfoRow label="GPS Tracker ID" value={dn.traccar_device_id || 'Not Assigned'} />
-            <InfoRow label="Dispatch Date" value={formatDate(dn.dispatch_date)} />
-            {dn.delivery_date && <InfoRow label="Delivery Date" value={formatDate(dn.delivery_date)} />}
+            <InfoRow label={t('dispatch.dispatchDate')} value={formatDate(dn.dispatch_date)} />
+            {dn.delivery_date && <InfoRow label={t('dispatch.deliveryDate')} value={formatDate(dn.delivery_date)} />}
           </Card.Content>
         </Card>
 
@@ -243,11 +245,11 @@ export default function FPODispatchDetailScreen() {
         <Card style={[styles.card, { backgroundColor: colors.card }]} elevation={1}>
           <Card.Content>
             <Text style={[styles.cardSectionTitle, { color: colors.text }]}>
-              Shipment Timeline
+              {t('dispatch.timeline')}
             </Text>
             
             {timeline.length === 0 && (
-              <Text style={{ color: colors.textSecondary }}>No events recorded.</Text>
+              <Text style={{ color: colors.textSecondary }}>{t('common.noData')}</Text>
             )}
 
             {timeline.map((event, index) => {

@@ -16,6 +16,7 @@ import { Text, TextInput, Button, Surface, HelperText, Divider } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
+import { useTranslation } from '@/i18n';
 import { LotStatus } from '@/types';
 import api from '@/utils/api';
 
@@ -23,6 +24,7 @@ export default function FPODispatchScreen() {
   const colors = getColors(useColorScheme());
   const router = useRouter();
   const { lotId } = useLocalSearchParams();
+  const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -171,7 +173,7 @@ export default function FPODispatchScreen() {
         console.error('Server error details:', JSON.stringify(err.response.data, null, 2));
       }
       Alert.alert(
-        'Error',
+        t('common.error') || 'Error',
         `Failed to generate dispatch note: ${
           err.response?.data?.detail || err.message || 'Unknown server error'
         }`
@@ -198,7 +200,7 @@ export default function FPODispatchScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>
-            Create Dispatch Note
+            {t('fpo.createDispatch')}
           </Text>
           <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
             Generate shipping documents and assign vehicle tracking
@@ -246,7 +248,7 @@ export default function FPODispatchScreen() {
 
             {/* Destination */}
             <TextInput
-              label="Shipping Destination *"
+              label={`${t('dispatch.destination')} *`}
               value={destination}
               onChangeText={(text) => { setDestination(text); setErrors(prev => ({ ...prev, destination: '' })); }}
               placeholder="e.g. Satara Aggregator, Phaltan WH"
@@ -259,7 +261,7 @@ export default function FPODispatchScreen() {
 
             {/* Vehicle Reg */}
             <TextInput
-              label="Vehicle Registration Number *"
+              label={`${t('dispatch.vehicle')} *`}
               value={vehicleReg}
               onChangeText={(text) => { setVehicleReg(text); setErrors(prev => ({ ...prev, vehicle: '' })); }}
               placeholder="e.g. MH-12-PQ-9080"
@@ -273,7 +275,7 @@ export default function FPODispatchScreen() {
 
             {/* NIC e-Way Bill */}
             <TextInput
-              label="e-Way Bill Number (Optional)"
+              label={`${t('fpo.eWayBill')} (Optional)`}
               value={ewayBill}
               onChangeText={setEwayBill}
               placeholder="e.g. EWB-MH-2026-00890"
@@ -317,7 +319,7 @@ export default function FPODispatchScreen() {
           <Surface style={[styles.modalCard, { backgroundColor: colors.card }]} elevation={5}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Select Lot</Text>
-              <Button onPress={() => setLotPickerVisible(false)} textColor={colors.primary}>Close</Button>
+              <Button onPress={() => setLotPickerVisible(false)} textColor={colors.primary}>{t('common.close')}</Button>
             </View>
             <Divider />
             <FlatList

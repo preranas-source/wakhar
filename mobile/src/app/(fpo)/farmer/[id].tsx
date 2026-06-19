@@ -5,6 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
 import { formatWeight, formatDate } from '@/utils/formatters';
+import { useTranslation } from '@/i18n';
+import { getCachedResponse } from '@/utils/database';
+import { useAuth } from '@/store/authStore';
 import api from '@/utils/api';
 
 export default function FarmerProfileScreen() {
@@ -12,6 +15,8 @@ export default function FarmerProfileScreen() {
   const colors = getColors(scheme);
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const { t } = useTranslation();
+  const { fpo, isAuthenticated } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [farmer, setFarmer] = useState<any>(null);
@@ -19,6 +24,7 @@ export default function FarmerProfileScreen() {
 
   useEffect(() => {
     const fetchDetails = async () => {
+      if (!isAuthenticated || !fpo?.id) return;
       try {
         const [farmerRes, lotsRes] = await Promise.all([
           api.get(`/api/farmers/${id}`),
@@ -28,13 +34,40 @@ export default function FarmerProfileScreen() {
         setLots(lotsRes.data || []);
       } catch (error) {
         console.error('Failed to load farmer details', error);
-        Alert.alert('Error', 'Could not load farmer profile.');
+        
+        // Try fallback cache
+        let loadedFromCache = false;
+        try {
+          const [cachedFarmers, cachedLotsList] = await Promise.all([
+            getCachedResponse(`/api/farmers?fpo_id=${fpo?.id || 1}`),
+            getCachedResponse(`/api/lots/`)
+          ]);
+
+          if (cachedFarmers) {
+            const foundFarmer = (cachedFarmers as any[]).find(f => f.id === Number(id));
+            if (foundFarmer) {
+              setFarmer(foundFarmer);
+              loadedFromCache = true;
+              
+              if (cachedLotsList) {
+                const foundLots = (cachedLotsList as any[]).filter(l => l.farmer_id === Number(id));
+                setLots(foundLots);
+              }
+            }
+          }
+        } catch (cacheErr) {
+          console.error('Failed to read fallback cache', cacheErr);
+        }
+
+        if (!loadedFromCache) {
+          Alert.alert(t('common.error') || 'Error', 'Could not load farmer profile.');
+        }
       } finally {
         setLoading(false);
       }
     };
     if (id) fetchDetails();
-  }, [id]);
+  }, [id, fpo?.id, isAuthenticated]);
 
   if (loading) {
     return (
@@ -49,7 +82,7 @@ export default function FarmerProfileScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
           <IconButton icon="arrow-left" iconColor={colors.text} size={24} onPress={() => router.back()} />
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Profile Not Found</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{t('fpo.profileNotFound')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -66,7 +99,7 @@ export default function FarmerProfileScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <IconButton icon="arrow-left" iconColor={colors.text} size={24} onPress={() => router.back()} />
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Farmer Profile</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>{t('fpo.farmerProfile')}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -83,11 +116,11 @@ export default function FarmerProfileScreen() {
 
           <View style={styles.infoGrid}>
             <View style={styles.infoBox}>
-              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Phone</Text>
+              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>{t('fpo.phone')}</Text>
               <Text style={[styles.infoVal, { color: colors.text }]}>{farmer.phone}</Text>
             </View>
             <View style={styles.infoBox}>
-              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Village</Text>
+              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>{t('fpo.village')}</Text>
               <Text style={[styles.infoVal, { color: colors.text }]}>{farmer.village || 'N/A'}</Text>
             </View>
           </View>
@@ -97,17 +130,17 @@ export default function FarmerProfileScreen() {
         <Card style={[styles.card, { backgroundColor: colors.primarySurface }]} elevation={0}>
           <Card.Content style={styles.depositContent}>
             <View>
-              <Text style={[styles.depositTitle, { color: colors.primary }]}>Total Active Deposits</Text>
-              <Text style={[styles.depositSub, { color: colors.textSecondary }]}>Currently in warehouse</Text>
+              <Text style={[styles.depositTitle, { color: colors.primary }]}>{t('farmer.activeDeposits')}</Text>
+              <Text style={[styles.depositSub, { color: colors.textSecondary }]}>{t('fpo.currentlyInWarehouse')}</Text>
             </View>
             <Text style={[styles.depositAmount, { color: colors.primary }]}>{formatWeight(totalActiveDeposits)}</Text>
           </Card.Content>
         </Card>
 
         {/* Active Lots List */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Active Commodities ({activeLots.length})</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('fpo.activeCommodities')} ({activeLots.length})</Text>
         {activeLots.length === 0 ? (
-          <Text style={{ color: colors.textSecondary }}>No active deposits found.</Text>
+          <Text style={{ color: colors.textSecondary }}>{t('common.noData')}</Text>
         ) : (
           activeLots.map((lot) => (
             <Card key={lot.id} style={[styles.lotCard, { backgroundColor: colors.card }]} elevation={1}>
@@ -115,7 +148,7 @@ export default function FarmerProfileScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.lotCode, { color: colors.text }]}>{lot.lot_code}</Text>
                   <Text style={[styles.lotCommodity, { color: colors.textSecondary }]}>
-                    {lot.commodity?.name || 'Commodity'} • {lot.variety || 'N/A'}
+                    {lot.commodity?.name || t('lot.commodity')} • {lot.variety || 'N/A'}
                   </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>

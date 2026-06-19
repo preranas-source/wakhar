@@ -14,6 +14,7 @@ from .dispatch_note import DispatchNote, DispatchStatus, DispatchTimelineEvent
 from .purchase_order import PurchaseOrder, POStatus, PaymentStatus
 from .activity_log import ActivityLog, ActivityType
 from .stock_audit import StockAudit, AuditStatus
+from .idempotency import IdempotencyRecord
 
 __all__ = [
     "Base",
@@ -46,4 +47,5 @@ __all__ = [
     "ActivityType",
     "StockAudit",
     "AuditStatus",
+    "IdempotencyRecord",
 ]

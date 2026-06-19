@@ -16,7 +16,7 @@ class QualityRecordBase(BaseModel):
     remarks: Optional[str] = None
 
 class QualityRecordCreate(QualityRecordBase):
-    pass
+    client_timestamp: Optional[datetime] = None
 
 class QualityRecordResponse(QualityRecordBase):
     id: int

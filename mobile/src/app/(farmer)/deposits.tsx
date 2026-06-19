@@ -10,6 +10,7 @@ import { Text, Card, Surface, Chip, IconButton } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
+import { useTranslation } from '@/i18n';
 import { formatWeight, formatDate } from '@/utils/formatters';
 import { useAuth } from '@/store/authStore';
 import { LotStatus } from '@/types';
@@ -20,6 +21,7 @@ export default function FarmerDepositsScreen() {
   const colors = getColors(scheme);
   const router = useRouter();
   const { farmerProfile, user } = useAuth();
+  const { t } = useTranslation();
   
   const farmer = farmerProfile || { id: 1 };
 
@@ -51,12 +53,12 @@ export default function FarmerDepositsScreen() {
   }, [farmerProfile?.id]);
 
   const filters = [
-    { key: 'all', label: 'All' },
-    { key: LotStatus.QC_PENDING, label: 'QC Pending' },
-    { key: LotStatus.AVAILABLE, label: 'Available' },
-    { key: LotStatus.IN_TRANSIT, label: 'In Transit' },
-    { key: LotStatus.DELIVERED, label: 'Delivered' },
-    { key: LotStatus.RETURNED, label: 'Returned' },
+    { key: 'all', label: t('common.all') },
+    { key: LotStatus.QC_PENDING, label: t('statuses.qc_pending') },
+    { key: LotStatus.AVAILABLE, label: t('statuses.available') },
+    { key: LotStatus.IN_TRANSIT, label: t('statuses.in_transit') },
+    { key: LotStatus.DELIVERED, label: t('statuses.delivered') },
+    { key: LotStatus.RETURNED, label: t('statuses.returned') },
   ];
 
   const filteredLots = allLots.filter(lot => {
@@ -90,7 +92,7 @@ export default function FarmerDepositsScreen() {
         <View style={styles.headerTitleRow}>
           <IconButton icon="arrow-left" iconColor={colors.text} size={24} onPress={() => router.replace('/(farmer)' as any)} />
           <Text style={[styles.headerTitle, { color: colors.text }]}>
-            My Deposits
+            {t('farmer.myDeposits')}
           </Text>
         </View>
       </View>
@@ -142,10 +144,10 @@ export default function FarmerDepositsScreen() {
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyEmoji}>📦</Text>
               <Text style={[styles.emptyText, { color: colors.text }]}>
-                No deposits found
+                {t('farmer.noDeposits')}
               </Text>
               <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
-                Deposits matching the "{filters.find(f => f.key === selectedFilter)?.label}" filter will appear here.
+                {t('farmerDeposits.noDepositsSubtext')}
               </Text>
             </View>
           }
@@ -173,12 +175,12 @@ export default function FarmerDepositsScreen() {
                   </View>
 
                   <Text style={[styles.commodity, { color: colors.text }]}>
-                    {comm ? comm.name : 'Commodity'}
+                    {comm ? comm.name : t('lot.commodity')}
                   </Text>
                   
                   <View style={styles.infoRow}>
                     <Text style={[styles.variety, { color: colors.textSecondary }]}>
-                      Variety: <Text style={{ color: colors.text, fontWeight: '500' }}>{lot.variety || 'N/A'}</Text>
+                      {t('lot.variety')}: <Text style={{ color: colors.text, fontWeight: '500' }}>{lot.variety || 'N/A'}</Text>
                     </Text>
                     <Text style={[styles.qty, { color: colors.primary }]}>
                       {formatWeight(lot.quantity_kg)}
@@ -187,7 +189,7 @@ export default function FarmerDepositsScreen() {
 
                   <View style={styles.footer}>
                     <Text style={[styles.warehouse, { color: colors.textSecondary }]} numberOfLines={1}>
-                      📍 {wh ? wh.name : 'Warehouse'}
+                      📍 {wh ? wh.name : t('lot.warehouse')}
                     </Text>
                     <Text style={[styles.date, { color: colors.textSecondary }]}>
                       {formatDate(lot.intake_date)}

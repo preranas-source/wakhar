@@ -3,6 +3,7 @@
     "appName": "Wakhar WMS",
     "loading": "Loading...",
     "error": "Something went wrong",
+    "success": "Success",
     "retry": "Retry",
     "cancel": "Cancel",
     "save": "Save",
@@ -29,7 +30,10 @@
     "logoutConfirm": "Are you sure you want to logout?",
     "language": "Language",
     "settings": "Settings",
-    "profile": "Profile"
+    "profile": "Profile",
+    "active": "Active",
+    "inactive": "Inactive",
+    "quickActions": "Quick Actions"
   },
   "auth": {
     "login": "Login",
@@ -42,7 +46,13 @@
     "loginButton": "Sign In",
     "loginError": "Invalid phone number or password",
     "forgotPassword": "Forgot Password?",
-    "selectRole": "Select your role to continue"
+    "selectRole": "Select your role to continue",
+    "fullName": "Full Name",
+    "email": "Email Address",
+    "aadhaar": "Aadhaar Number",
+    "village": "Village",
+    "bankAccount": "Bank Account Number",
+    "bankIfsc": "Bank IFSC Code"
   },
   "roles": {
     "farmer": "Farmer",
@@ -87,7 +97,11 @@
     "bankIFSC": "Bank IFSC",
     "depositHistory": "Deposit History",
     "noDeposits": "No deposits found",
-    "noReceipts": "No warehouse receipts found"
+    "noReceipts": "No warehouse receipts found",
+    "activeDeposits": "Active Deposits",
+    "deposits": "Deposits",
+    "viewReceipts": "View Receipts",
+    "noDepositsRecorded": "No deposits recorded yet."
   },
   "fpo": {
     "dashboardTitle": "FPO Dashboard",
@@ -136,12 +150,40 @@
     "eWayBill": "E-Way Bill No.",
     "dispatchSuccess": "Dispatch note created: %{code}",
     "farmerDirectory": "Farmer Directory",
+    "farmersDir": "Farmer Directory",
+    "searchFarmer": "Search Farmer...",
+    "registerFarmer": "Register Farmer",
+    "farmerDetails": "Farmer Details",
+    "bankInfo": "Bank Information",
+    "village": "Village",
+    "phone": "Phone Number",
     "warehouseOverview": "Warehouse Overview",
     "capacity": "Capacity",
     "utilization": "Utilization",
     "currentStock": "Current Stock",
     "offlineQueued": "Offline — will sync when online",
-    "pendingSync": "%{count} pending sync"
+    "pendingSync": "%{count} pending sync",
+    "withdrawalRequests": "Withdrawal Requests",
+    "reject": "Reject",
+    "approve": "Approve",
+    "spaceUtilization": "Space Utilization",
+    "manager": "Manager",
+    "hours": "Operating Hours",
+    "permitted": "Permitted Commodities",
+    "profileNotFound": "Profile Not Found",
+    "farmerProfile": "Farmer Profile",
+    "currentlyInWarehouse": "Currently in Warehouse",
+    "activeCommodities": "Active Commodities",
+    "physicalCount": "Physical Audit",
+    "newStockAudit": "New Stock Audit",
+    "systemRecordedStock": "System Recorded Stock",
+    "physicallyCountedStock": "Physically Counted Stock (MT)",
+    "remarksVariances": "Remarks / Variances",
+    "submitAuditRecord": "Submit Audit Record",
+    "auditHistory": "Audit History",
+    "system": "System",
+    "actual": "Actual",
+    "variance": "Variance"
   },
   "lot": {
     "lotCode": "Lot Code",
@@ -212,5 +254,98 @@
     "bags": "bags",
     "perKg": "/kg",
     "perMt": "/MT"
+  },
+  "login": {
+    "selectCountryCode": "Select Country Code"
+  },
+  "profile": {
+    "personalDetails": "Personal Details",
+    "mobilePhone": "Mobile Phone",
+    "villageLocation": "Village / Location",
+    "aadhaarCard": "Aadhaar Card",
+    "bankDetailsTitle": "Bank Details (for payouts)",
+    "bankAccount": "Bank Account",
+    "ifscCode": "IFSC Code",
+    "registeredFpo": "Registered FPO",
+    "fpoName": "FPO Name",
+    "fpoCode": "FPO Code",
+    "regionState": "Region / State",
+    "appLanguage": "App Language",
+    "changePassword": "Change Password",
+    "logout": "Logout",
+    "languageUpdated": "Language Updated",
+    "languageChangedSuccessfully": "Language changed successfully!",
+    "farmerId": "Farmer ID:"
+  },
+  "fpoMore": {
+    "role": "Role:",
+    "intakeLedger": "Intake Ledger",
+    "intakeLedgerDesc": "View all received lots and quality status",
+    "withdrawalRequests": "Withdrawal Requests",
+    "withdrawalRequestsDesc": "Approve or manage farmer stock release requests",
+    "farmerDirectory": "Farmer Directory",
+    "farmerDirectoryDesc": "View and search FPO registered farmers",
+    "warehouseOverview": "Warehouse Overview",
+    "warehouseOverviewDesc": "View capacity and storage utilization stats",
+    "appLanguage": "App Language",
+    "logout": "Logout",
+    "languageUpdated": "Language Updated"
+  },
+  "fpoGrading": {
+    "qcTitle": "Quality Control & Grading",
+    "evaluating": "Evaluating:",
+    "awardedGrade": "Awarded Grade *",
+    "parameters": "Parameters",
+    "inspectionRemarks": "Inspection Remarks",
+    "issueCertificate": "Issue Certificate & Grade"
+  },
+  "farmerPassword": {
+    "changePasswordTitle": "Change Password",
+    "currentPassword": "Current Password",
+    "newPassword": "New Password",
+    "confirmNewPassword": "Confirm New Password",
+    "updatePassword": "Update Password",
+    "passwordInstructions": "Please enter your current password and your desired new password."
+  },
+  "farmerDeposits": {
+    "noDepositsSubtext": "Deposits matching the selected filter will appear here."
+  },
+  "farmerDetail": {
+    "depositDetails": "Deposit Details",
+    "intakeInfo": "Intake Info",
+    "qualityCertificate": "Quality Certificate",
+    "pendingGrading": "PENDING GRADING",
+    "lotTimeline": "Lot Timeline",
+    "netWeight": "Net Weight",
+    "receiptDetails": "Receipt Details",
+    "estimatedValue": "Estimated Market Value",
+    "commodityDetails": "Commodity Details",
+    "receiptInfo": "Receipt Info",
+    "enamStatus": "eNAM Market Status",
+    "submitted": "SUBMITTED",
+    "notSubmitted": "NOT SUBMITTED",
+    "collateralPledging": "Collateral Pledging & Bank Loan",
+    "requestWithdrawal": "Request Stock Withdrawal",
+    "note": "Note:",
+    "pledge": "PLEDGE:",
+    "expires": "Expires:",
+    "cancel": "Cancel",
+    "confirmWithdrawal": "Confirm Withdrawal"
+  },
+  "errors": {
+    "lotNotFound": "Lot not found.",
+    "receiptNotFound": "Warehouse receipt not found.",
+    "actionBlocked": "Action Blocked",
+    "collateralBlocked": "This receipt is pledged as collateral for an active loan. You must repay the loan to release the collateral before requesting a stock withdrawal.",
+    "withdrawalSubmitted": "Your request for withdrawal has been processed.",
+    "withdrawalInstructions": "Please visit the warehouse with your Digital Gate Pass to collect your stock."
+  },
+  "validation": {
+    "farmerRequired": "Farmer is required",
+    "commodityRequired": "Commodity is required",
+    "validQuantity": "Valid quantity is required",
+    "validBagCount": "Valid bag count is required",
+    "validMoisture": "Valid moisture is required",
+    "warehouseRequired": "Warehouse is required"
   }
 }

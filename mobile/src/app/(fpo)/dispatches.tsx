@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
 import { formatDate } from '@/utils/formatters';
+import { useTranslation } from '@/i18n';
 import { DispatchStatus } from '@/types';
 import api from '@/utils/api';
 
@@ -18,6 +19,7 @@ export default function FPODispatchListScreen() {
   const scheme = useColorScheme();
   const colors = getColors(scheme);
   const router = useRouter();
+  const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
@@ -44,10 +46,10 @@ export default function FPODispatchListScreen() {
   );
 
   const filters = [
-    { key: 'all', label: 'All Shipments' },
-    { key: DispatchStatus.CREATED, label: 'Created' },
-    { key: DispatchStatus.IN_TRANSIT, label: 'In Transit' },
-    { key: DispatchStatus.DELIVERED, label: 'Delivered' },
+    { key: 'all', label: t('common.all') },
+    { key: DispatchStatus.CREATED, label: t('statuses.created') },
+    { key: DispatchStatus.IN_TRANSIT, label: t('statuses.in_transit') },
+    { key: DispatchStatus.DELIVERED, label: t('statuses.delivered') },
   ];
 
   const filteredDispatches = dispatchNotes.filter(dn => {
@@ -75,7 +77,7 @@ export default function FPODispatchListScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Gate Out Dispatches
+          {t('fpo.dispatchList')}
         </Text>
         <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
           Track vehicle shipments and delivery passes
@@ -130,7 +132,7 @@ export default function FPODispatchListScreen() {
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyEmoji}>🚛</Text>
               <Text style={[styles.emptyText, { color: colors.text }]}>
-                No dispatches recorded
+                {t('common.noData')}
               </Text>
               <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
                 Dispatches matching the selected status will appear here.
@@ -164,11 +166,11 @@ export default function FPODispatchListScreen() {
                   
                   <View style={styles.detailRow}>
                     <View style={styles.detailCol}>
-                      <Text style={[styles.label, { color: colors.textSecondary }]}>Destination</Text>
+                      <Text style={[styles.label, { color: colors.textSecondary }]}>{t('dispatch.destination')}</Text>
                       <Text style={[styles.val, { color: colors.text }]}>{dn.destination}</Text>
                     </View>
                     <View style={styles.detailCol}>
-                      <Text style={[styles.label, { color: colors.textSecondary }]}>Vehicle</Text>
+                      <Text style={[styles.label, { color: colors.textSecondary }]}>{t('dispatch.vehicle')}</Text>
                       <Text style={[styles.val, { color: colors.text }]}>{dn.vehicle_reg}</Text>
                     </View>
                   </View>
@@ -178,7 +180,7 @@ export default function FPODispatchListScreen() {
                       {dn.quantity_desc}
                     </Text>
                     <Text style={[styles.date, { color: colors.textSecondary }]}>
-                      Shipped: {formatDate(dn.dispatch_date)}
+                      {t('dispatch.dispatchDate')}: {formatDate(dn.dispatch_date)}
                     </Text>
                   </View>
                 </Card.Content>

@@ -15,7 +15,7 @@ import { Text, Card, Avatar, Divider, List, Menu } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
-import { AVAILABLE_LOCALES, setLocale, getLocale } from '@/i18n';
+import { AVAILABLE_LOCALES, useTranslation } from '@/i18n';
 import { useAuth } from '@/store/authStore';
 
 export default function FPOSettingsScreen() {
@@ -23,29 +23,28 @@ export default function FPOSettingsScreen() {
   const colors = getColors(scheme);
   const router = useRouter();
   const { user, fpo, logout } = useAuth();
+  const { locale, setLocale, t } = useTranslation();
 
   const currentUser = user || { full_name: 'Rajesh Bhosale', role: 'fpo_manager' };
   const currentFpo = fpo || { name: 'Wai FPO', code: 'WAI-FPO' };
 
   const initials = currentUser.full_name
-    ? currentUser.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    ? currentUser.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
     : 'RB';
 
   const [menuVisible, setMenuVisible] = useState(false);
-  const [currentLang, setCurrentLang] = useState(getLocale());
 
   const handleLanguageChange = (langCode: 'en' | 'mr' | 'hi') => {
     setLocale(langCode);
-    setCurrentLang(langCode);
     setMenuVisible(false);
-    Alert.alert('Language Updated', 'Language changed successfully!');
+    Alert.alert(t('profile.languageUpdated'), t('profile.languageChangedSuccessfully'));
   };
 
   const handleLogout = async () => {
     await logout();
   };
 
-  const currentLangLabel = AVAILABLE_LOCALES.find(l => l.code === currentLang)?.label || 'English';
+  const currentLangLabel = AVAILABLE_LOCALES.find(l => l.code === locale)?.nativeLabel || 'English';
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -64,7 +63,7 @@ export default function FPOSettingsScreen() {
                 {currentUser.full_name}
               </Text>
               <Text style={[styles.profileRole, { color: colors.textSecondary }]}>
-                Role: {currentUser.role.replace('fpo_', '').toUpperCase()}
+                {t('fpoMore.role')} {currentUser.role.replace('fpo_', '').toUpperCase()}
               </Text>
               <Text style={[styles.profileFpo, { color: colors.primary, fontWeight: '600' }]}>
                 🏢 {currentFpo.name} ({currentFpo.code})
@@ -77,8 +76,8 @@ export default function FPOSettingsScreen() {
         <Card style={[styles.card, { backgroundColor: colors.card }]} elevation={1}>
           <Card.Content style={{ paddingVertical: 0 }}>
             <List.Item
-              title="Intake Ledger"
-              description="View all received lots and quality status"
+              title={t('fpoMore.intakeLedger')}
+              description={t('fpoMore.intakeLedgerDesc')}
               left={props => <List.Icon {...props} icon="clipboard-text-multiple" color={colors.primary} />}
               right={props => <List.Icon {...props} icon="chevron-right" />}
               onPress={() => router.push('/(fpo)/intake-list' as any)}
@@ -89,8 +88,8 @@ export default function FPOSettingsScreen() {
             <Divider />
 
             <List.Item
-              title="Withdrawal Requests"
-              description="Approve or manage farmer stock release requests"
+              title={t('fpoMore.withdrawalRequests')}
+              description={t('fpoMore.withdrawalRequestsDesc')}
               left={props => <List.Icon {...props} icon="hand-pointing-right" color={colors.primary} />}
               right={props => <List.Icon {...props} icon="chevron-right" />}
               onPress={() => router.push('/(fpo)/withdrawals' as any)}
@@ -101,8 +100,8 @@ export default function FPOSettingsScreen() {
             <Divider />
 
             <List.Item
-              title="Farmer Directory"
-              description="View and search FPO registered farmers"
+              title={t('fpoMore.farmerDirectory')}
+              description={t('fpoMore.farmerDirectoryDesc')}
               left={props => <List.Icon {...props} icon="account-group" color={colors.primary} />}
               right={props => <List.Icon {...props} icon="chevron-right" />}
               onPress={() => router.push('/(fpo)/farmers-dir' as any)}
@@ -113,8 +112,8 @@ export default function FPOSettingsScreen() {
             <Divider />
 
             <List.Item
-              title="Warehouse Overview"
-              description="View capacity and storage utilization stats"
+              title={t('fpoMore.warehouseOverview')}
+              description={t('fpoMore.warehouseOverviewDesc')}
               left={props => <List.Icon {...props} icon="warehouse" color={colors.primary} />}
               right={props => <List.Icon {...props} icon="chevron-right" />}
               onPress={() => router.push('/(fpo)/warehouses' as any)}
@@ -133,7 +132,7 @@ export default function FPOSettingsScreen() {
               onDismiss={() => setMenuVisible(false)}
               anchor={
                 <List.Item
-                  title="App Language"
+                  title={t('fpoMore.appLanguage')}
                   description={currentLangLabel}
                   left={props => <List.Icon {...props} icon="translate" color={colors.primary} />}
                   right={props => <List.Icon {...props} icon="chevron-right" />}
@@ -148,7 +147,7 @@ export default function FPOSettingsScreen() {
                   key={loc.code}
                   onPress={() => handleLanguageChange(loc.code as 'en' | 'mr' | 'hi')}
                   title={loc.nativeLabel}
-                  titleStyle={{ color: currentLang === loc.code ? colors.primary : colors.text }}
+                  titleStyle={{ color: locale === loc.code ? colors.primary : colors.text }}
                 />
               ))}
             </Menu>
@@ -157,7 +156,7 @@ export default function FPOSettingsScreen() {
 
             {/* Logout Row */}
             <List.Item
-              title="Logout"
+              title={t('fpoMore.logout')}
               titleStyle={{ color: colors.error, fontWeight: '600' }}
               left={props => <List.Icon {...props} icon="logout" color={colors.error} />}
               onPress={handleLogout}

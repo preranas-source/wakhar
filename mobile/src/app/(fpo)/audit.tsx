@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
 import { formatWeight, formatDate } from '@/utils/formatters';
+import { useTranslation } from '@/i18n';
 import { useAuth } from '@/store/authStore';
 import api from '@/utils/api';
 
@@ -13,9 +14,8 @@ export default function FPOAuditScreen() {
   const colors = getColors(scheme);
   const router = useRouter();
   const { fpo } = useAuth();
+  const { t } = useTranslation();
   
-  const currentFpoId = fpo?.id || 1;
-
   const [loading, setLoading] = useState(true);
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [audits, setAudits] = useState<any[]>([]);
@@ -26,8 +26,9 @@ export default function FPOAuditScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchAudits = async () => {
+    if (!fpo?.id) return;
     try {
-      const whRes = await api.get(`/api/warehouses?fpo_id=${currentFpoId}`);
+      const whRes = await api.get(`/api/warehouses?fpo_id=${fpo.id}`);
       setWarehouses(whRes.data);
       if (whRes.data.length > 0 && !selectedWhId) {
         setSelectedWhId(whRes.data[0].id);
@@ -44,17 +45,19 @@ export default function FPOAuditScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchAudits();
-    }, [currentFpoId])
+      if (fpo?.id) {
+        fetchAudits();
+      }
+    }, [fpo?.id])
   );
 
   const handleSubmitAudit = async () => {
     if (!selectedWhId) {
-      Alert.alert('Error', 'Please select a warehouse');
+      Alert.alert(t('common.error') || 'Error', 'Please select a warehouse');
       return;
     }
     if (!actualStock || isNaN(Number(actualStock)) || Number(actualStock) < 0) {
-      Alert.alert('Error', 'Please enter a valid actual stock value');
+      Alert.alert(t('common.error') || 'Error', 'Please enter a valid actual stock value');
       return;
     }
 
@@ -65,13 +68,13 @@ export default function FPOAuditScreen() {
         actual_stock_mt: Number(actualStock),
         remarks: remarks
       });
-      Alert.alert('Success', 'Physical cycle count recorded successfully.');
+      Alert.alert(t('common.success') || 'Success', 'Physical cycle count recorded successfully.');
       setActualStock('');
       setRemarks('');
       fetchAudits();
     } catch (err) {
       console.error('Failed to submit audit', err);
-      Alert.alert('Error', 'Failed to record audit.');
+      Alert.alert(t('common.error') || 'Error', 'Failed to record audit.');
     } finally {
       setIsSubmitting(false);
     }
@@ -92,16 +95,16 @@ export default function FPOAuditScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.header}>
           <IconButton icon="arrow-left" iconColor={colors.text} size={24} onPress={() => router.back()} />
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Physical Cycle Count</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{t('fpo.physicalCount')}</Text>
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Audit Form */}
           <Card style={[styles.card, { backgroundColor: colors.card }]} elevation={1}>
             <Card.Content>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>New Stock Audit</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('fpo.newStockAudit')}</Text>
               
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Select Warehouse</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>{t('fpo.selectWarehouse')}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.lg }}>
                 {warehouses.map(wh => (
                   <Button
@@ -118,7 +121,7 @@ export default function FPOAuditScreen() {
 
               {selectedWh && (
                 <Surface style={[styles.systemBox, { backgroundColor: colors.primarySurface }]} elevation={0}>
-                  <Text style={{ color: colors.primary, fontSize: 12, fontWeight: '600' }}>System Recorded Stock</Text>
+                  <Text style={{ color: colors.primary, fontSize: 12, fontWeight: '600' }}>{t('fpo.systemRecordedStock')}</Text>
                   <Text style={{ color: colors.primary, fontSize: 24, fontWeight: '700' }}>
                     {Number(selectedWh.current_stock_mt).toFixed(2)} MT
                   </Text>
@@ -126,7 +129,7 @@ export default function FPOAuditScreen() {
               )}
 
               <TextInput
-                label="Physically Counted Stock (MT) *"
+                label={t('fpo.physicallyCountedStock')}
                 value={actualStock}
                 onChangeText={setActualStock}
                 keyboardType="numeric"
@@ -137,7 +140,7 @@ export default function FPOAuditScreen() {
               />
 
               <TextInput
-                label="Remarks / Variances Details"
+                label={t('fpo.remarksVariances')}
                 value={remarks}
                 onChangeText={setRemarks}
                 mode="outlined"
@@ -156,15 +159,15 @@ export default function FPOAuditScreen() {
                 style={styles.btn}
                 buttonColor={colors.secondary}
               >
-                Submit Audit Record
+                {t('fpo.submitAuditRecord')}
               </Button>
             </Card.Content>
           </Card>
 
           {/* Audit History */}
-          <Text style={[styles.historyTitle, { color: colors.text }]}>Audit History</Text>
+          <Text style={[styles.historyTitle, { color: colors.text }]}>{t('fpo.auditHistory')}</Text>
           {audits.length === 0 ? (
-            <Text style={{ color: colors.textSecondary }}>No past audits found.</Text>
+            <Text style={{ color: colors.textSecondary }}>{t('common.noData')}</Text>
           ) : (
             audits.map(audit => (
               <Card key={audit.id} style={[styles.card, { backgroundColor: colors.card }]} elevation={1}>
@@ -174,19 +177,19 @@ export default function FPOAuditScreen() {
                     <Text style={{ fontSize: 12, color: colors.textSecondary }}>{formatDate(audit.audit_date)}</Text>
                   </View>
                   <Text style={{ fontSize: 13, color: colors.textSecondary, marginBottom: Spacing.md }}>
-                    Warehouse ID: {audit.warehouse_id}
+                    {t('lot.warehouse')}: {audit.warehouse_id}
                   </Text>
                   <View style={styles.grid}>
                     <View style={styles.gridBox}>
-                      <Text style={{ fontSize: 10, color: colors.textSecondary }}>System</Text>
+                      <Text style={{ fontSize: 10, color: colors.textSecondary }}>{t('fpo.system')}</Text>
                       <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }}>{Number(audit.system_stock_mt).toFixed(2)}</Text>
                     </View>
                     <View style={styles.gridBox}>
-                      <Text style={{ fontSize: 10, color: colors.textSecondary }}>Actual</Text>
+                      <Text style={{ fontSize: 10, color: colors.textSecondary }}>{t('fpo.actual')}</Text>
                       <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }}>{Number(audit.actual_stock_mt).toFixed(2)}</Text>
                     </View>
                     <View style={styles.gridBox}>
-                      <Text style={{ fontSize: 10, color: colors.textSecondary }}>Variance</Text>
+                      <Text style={{ fontSize: 10, color: colors.textSecondary }}>{t('fpo.variance')}</Text>
                       <Text style={{ fontSize: 14, fontWeight: '700', color: Number(audit.variance_mt) !== 0 ? colors.error : colors.success }}>
                         {Number(audit.variance_mt).toFixed(2)}
                       </Text>

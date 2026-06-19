@@ -26,7 +26,9 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=QualityRecordResponse, status_code=status.HTTP_201_CREATED)
 def create_item(data: QualityRecordCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff']))):
-    item = QualityRecord(**data.model_dump())
+    item = QualityRecord(**data.model_dump(exclude={'client_timestamp'}))
+    if data.client_timestamp:
+        item.inspection_date = data.client_timestamp
     db.add(item)
     db.commit()
     db.refresh(item)

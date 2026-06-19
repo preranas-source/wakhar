@@ -12,7 +12,7 @@ import { Text, Card, Avatar, Button, Surface } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
-import { t } from '@/i18n';
+import { useTranslation } from '@/i18n';
 import { formatWeight, formatDate } from '@/utils/formatters';
 import { useAuth } from '@/store/authStore';
 import api from '@/utils/api';
@@ -22,6 +22,7 @@ export default function FarmerHomeScreen() {
   const colors = getColors(scheme);
   const router = useRouter();
   const { farmerProfile, user, fpo: linkedFpo } = useAuth();
+  const { t } = useTranslation();
   
   // Use mock fallback for UI safety if profile is null but user is logged in
   const farmer = farmerProfile || { id: 1, name: user?.full_name || 'Farmer' };
@@ -132,7 +133,7 @@ export default function FarmerHomeScreen() {
                 {formatWeight(totalWeight)}
               </Text>
               <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>
-                Total Deposits
+                {t('farmer.totalDeposits')}
               </Text>
             </Card.Content>
           </Card>
@@ -144,7 +145,7 @@ export default function FarmerHomeScreen() {
                 {activeReceipts}
               </Text>
               <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>
-                Active WRs
+                {t('farmer.activeReceipts')}
               </Text>
             </Card.Content>
           </Card>
@@ -156,7 +157,7 @@ export default function FarmerHomeScreen() {
                 {pendingQC}
               </Text>
               <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>
-                Pending QC
+                {t('farmer.pendingQC')}
               </Text>
             </Card.Content>
           </Card>
@@ -165,7 +166,7 @@ export default function FarmerHomeScreen() {
         {/* Quick Links Section */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Quick Actions
+            {t('common.quickActions') || 'Quick Actions'}
           </Text>
         </View>
         <View style={styles.quickActions}>
@@ -176,7 +177,7 @@ export default function FarmerHomeScreen() {
             style={[styles.actionBtn, { borderRadius: BorderRadius.lg }]}
             buttonColor={colors.primary}
           >
-            View Receipts
+            {t('farmer.viewReceipts') || 'View Receipts'}
           </Button>
           <Button
             mode="outlined"
@@ -185,17 +186,17 @@ export default function FarmerHomeScreen() {
             style={[styles.actionBtnOutline, { borderRadius: BorderRadius.lg }]}
             textColor={colors.primary}
           >
-            Deposit History
+            {t('farmer.depositHistory')}
           </Button>
         </View>
 
         {/* Recent Deposits Feed */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Recent Deposits
+            {t('farmer.recentDeposits')}
           </Text>
           <TouchableOpacity onPress={() => router.push('/(farmer)/deposits' as any)}>
-            <Text style={{ color: colors.primary, fontWeight: '600' }}>See All</Text>
+            <Text style={{ color: colors.primary, fontWeight: '600' }}>{t('common.viewAll')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -203,7 +204,7 @@ export default function FarmerHomeScreen() {
           <Card style={[styles.emptyCard, { backgroundColor: colors.card }]} elevation={1}>
             <Card.Content style={styles.emptyContent}>
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No deposits recorded yet.
+                {t('farmer.noDepositsRecorded') || 'No deposits recorded yet.'}
               </Text>
             </Card.Content>
           </Card>

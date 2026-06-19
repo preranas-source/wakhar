@@ -19,6 +19,7 @@ import {
   getStatusColor,
   getGradeColor,
 } from '@/utils/formatters';
+import { useTranslation } from '@/i18n';
 import { LotStatus } from '@/types';
 import api from '@/utils/api';
 import WarehouseLayoutSelector from '@/components/WarehouseLayoutSelector';
@@ -28,6 +29,7 @@ export default function FPOLotDetailScreen() {
   const colors = getColors(scheme);
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
   
@@ -48,7 +50,7 @@ export default function FPOLotDetailScreen() {
       setLayoutSelectorVisible(false);
     } catch (err) {
       console.error('Failed to update zone', err);
-      Alert.alert('Error', 'Could not update storage location.');
+      Alert.alert(t('common.error') || 'Error', 'Could not update storage location.');
     }
   };
 
@@ -84,7 +86,7 @@ export default function FPOLotDetailScreen() {
       );
     } catch (err) {
       console.error('Failed to generate warehouse receipt', err);
-      Alert.alert('Error', 'Could not generate Warehouse Receipt.');
+      Alert.alert(t('common.error') || 'Error', 'Could not generate Warehouse Receipt.');
     } finally {
       setIsGeneratingWR(false);
     }
@@ -92,6 +94,14 @@ export default function FPOLotDetailScreen() {
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
+      setLot(null);
+      setFarmer(null);
+      setComm(null);
+      setWh(null);
+      setQc(null);
+      setWr(null);
+      setMovements([]);
       try {
         // Fetch primary lot
         const lotRes = await api.get(`/api/lots/${id}`);
@@ -103,16 +113,16 @@ export default function FPOLotDetailScreen() {
           api.get(`/api/farmers/${lotData.farmer_id}`),
           api.get(`/api/commodities/${lotData.commodity_id}`),
           api.get(`/api/warehouses/${lotData.warehouse_id}`),
-          api.get(`/api/quality-records?lot_id=${id}`),
-          api.get(`/api/warehouse-receipts?lot_id=${id}`),
-          api.get(`/api/stock-movements?lot_id=${id}`)
+          api.get(`/api/quality-records/?lot_id=${id}`),
+          api.get(`/api/warehouse-receipts/?lot_id=${id}`),
+          api.get(`/api/stock-movements/?lot_id=${id}`)
         ]);
 
         setFarmer(farmRes.data);
         setComm(commRes.data);
         setWh(whRes.data);
-        if (qcRes.data.length > 0) setQc(qcRes.data[0]);
-        if (wrRes.data.length > 0) setWr(wrRes.data[0]);
+        setQc(qcRes.data.length > 0 ? qcRes.data[0] : null);
+        setWr(wrRes.data.length > 0 ? wrRes.data[0] : null);
 
         setMovements(movRes.data.sort((a: any, b: any) => 
           new Date(b.movement_date).getTime() - new Date(a.movement_date).getTime()
@@ -139,7 +149,7 @@ export default function FPOLotDetailScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: colors.error }]}>
-            Lot not found.
+            {t('errors.lotNotFound')}
           </Text>
           <IconButton icon="arrow-left" size={24} onPress={() => router.back()} />
         </View>
@@ -156,7 +166,7 @@ export default function FPOLotDetailScreen() {
       <View style={styles.header}>
         <IconButton icon="arrow-left" iconColor={colors.text} size={24} onPress={() => router.back()} />
         <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Lot Overview
+          {t('fpo.lotDetail')}
         </Text>
       </View>
 
@@ -176,10 +186,10 @@ export default function FPOLotDetailScreen() {
             </View>
 
             <Text style={[styles.commodityTitle, { color: colors.text }]}>
-              {comm ? comm.name : 'Commodity'} {lot.variety && `(${lot.variety})`}
+              {comm ? comm.name : t('lot.commodity')} {lot.variety && `(${lot.variety})`}
             </Text>
             <Text style={[styles.farmerText, { color: colors.textSecondary }]}>
-              Farmer: {farmer ? farmer.name : 'Unknown'} ({farmer?.farmer_code})
+              {t('lot.farmer')}: {farmer ? farmer.name : 'Unknown'} ({farmer?.farmer_code})
             </Text>
 
             <Divider style={styles.divider} />
@@ -190,15 +200,15 @@ export default function FPOLotDetailScreen() {
                   {formatWeight(lot.quantity_kg)}
                 </Text>
                 <Text style={[styles.specLabel, { color: colors.textSecondary }]}>
-                  Weight
+                  {t('lot.quantity')}
                 </Text>
               </View>
               <View style={styles.specItem}>
                 <Text style={[styles.specVal, { color: colors.text }]}>
-                  {lot.bag_count} bags
+                  {lot.bag_count} {t('lot.bags')}
                 </Text>
                 <Text style={[styles.specLabel, { color: colors.textSecondary }]}>
-                  Quantity
+                  {t('fpo.bagCount')}
                 </Text>
               </View>
               <View style={styles.specItem}>
@@ -206,7 +216,7 @@ export default function FPOLotDetailScreen() {
                   {lot.moisture_pct ? formatPercent(lot.moisture_pct) : '—'}
                 </Text>
                 <Text style={[styles.specLabel, { color: colors.textSecondary }]}>
-                  Moisture %
+                  {t('lot.moisture')}
                 </Text>
               </View>
             </View>
@@ -224,10 +234,10 @@ export default function FPOLotDetailScreen() {
                 Edit Layout
               </Button>
             </View>
-            <InfoRow label="Warehouse" value={wh ? wh.name : 'N/A'} />
-            <InfoRow label="Zone / Rack" value={lot.zone || 'Unassigned'} />
-            <InfoRow label="Intake Flow" value={lot.intake_type.replace('_', ' ').toUpperCase()} />
-            <InfoRow label="Intake Date" value={formatDate(lot.intake_date)} />
+            <InfoRow label={t('lot.warehouse')} value={wh ? wh.name : 'N/A'} />
+            <InfoRow label={t('lot.zone')} value={lot.zone || 'Unassigned'} />
+            <InfoRow label={t('fpo.intakeType')} value={lot.intake_type.replace('_', ' ').toUpperCase()} />
+            <InfoRow label={t('lot.intakeDate')} value={formatDate(lot.intake_date)} />
           </Card.Content>
         </Card>
 
@@ -236,7 +246,7 @@ export default function FPOLotDetailScreen() {
           <Card.Content>
             <View style={styles.sectionHeaderRow}>
               <Text style={[styles.cardSectionTitle, { color: colors.text }]}>
-                Quality Certificate
+                {t('lot.qualityRecords')}
               </Text>
               {qc ? (
                 <Surface style={[styles.badge, { backgroundColor: gradeColor + '15' }]} elevation={0}>
@@ -259,10 +269,10 @@ export default function FPOLotDetailScreen() {
                 <InfoRow label="Inspection Date" value={formatDate(qc.inspection_date)} />
                 <Divider style={styles.subDivider} />
                 <View style={styles.qcGrid}>
-                  <QCItem label="Moisture" value={qc.moisture_pct ? formatPercent(qc.moisture_pct) : '—'} />
-                  <QCItem label="Foreign Matter" value={qc.foreign_matter_pct ? formatPercent(qc.foreign_matter_pct) : '0.0%'} />
-                  <QCItem label="Broken Grain" value={qc.broken_grain_pct ? formatPercent(qc.broken_grain_pct) : '0.0%'} />
-                  <QCItem label="Protein" value={qc.protein_pct ? formatPercent(qc.protein_pct) : '—'} />
+                  <QCItem label={t('lot.moisture')} value={qc.moisture_pct ? formatPercent(qc.moisture_pct) : '—'} />
+                  <QCItem label={t('fpo.foreignMatterPct')} value={qc.foreign_matter_pct ? formatPercent(qc.foreign_matter_pct) : '0.0%'} />
+                  <QCItem label={t('fpo.brokenGrainPct')} value={qc.broken_grain_pct ? formatPercent(qc.broken_grain_pct) : '0.0%'} />
+                  <QCItem label={t('fpo.proteinPct')} value={qc.protein_pct ? formatPercent(qc.protein_pct) : '—'} />
                 </View>
               </View>
             ) : (
@@ -277,7 +287,7 @@ export default function FPOLotDetailScreen() {
                     style={styles.actionBtnInline}
                     onPress={() => router.push({ pathname: '/(fpo)/grading', params: { lotId: lot.id } } as any)}
                   >
-                    Run Quality Grading
+                    {t('fpo.gradeLot')}
                   </Button>
                 )}
               </View>
@@ -291,7 +301,7 @@ export default function FPOLotDetailScreen() {
             <Card.Content>
               <View style={styles.sectionHeaderRow}>
                 <Text style={[styles.cardSectionTitle, { color: colors.text }]}>
-                  Warehouse Receipt
+                  {t('lot.warehouseReceipt')}
                 </Text>
                 <Surface style={[styles.badge, { backgroundColor: colors.successSurface }]} elevation={0}>
                   <Text style={[styles.badgeText, { color: colors.success }]}>
@@ -312,7 +322,7 @@ export default function FPOLotDetailScreen() {
             <Card style={[styles.card, { backgroundColor: colors.card }]} elevation={1}>
               <Card.Content>
                 <Text style={[styles.cardSectionTitle, { color: colors.text }]}>
-                  Warehouse Receipt
+                  {t('lot.warehouseReceipt')}
                 </Text>
                 <Text style={[styles.helperText, { color: colors.textSecondary, marginBottom: Spacing.md }]}>
                   Grading completed successfully. A warehouse receipt can now be generated for the farmer.
@@ -325,7 +335,7 @@ export default function FPOLotDetailScreen() {
                   loading={isGeneratingWR}
                   disabled={isGeneratingWR}
                 >
-                  Generate WR Receipt
+                  {t('fpo.issueWR')}
                 </Button>
               </Card.Content>
             </Card>
@@ -336,10 +346,10 @@ export default function FPOLotDetailScreen() {
         <Card style={[styles.card, { backgroundColor: colors.card }]} elevation={1}>
           <Card.Content>
             <Text style={[styles.cardSectionTitle, { color: colors.text }]}>
-              Stock Movements History
+              {t('lot.stockMovements')}
             </Text>
             {movements.length === 0 && (
-              <Text style={{ color: colors.textSecondary }}>No movements recorded.</Text>
+              <Text style={{ color: colors.textSecondary }}>{t('common.noData')}</Text>
             )}
             {movements.map((mov, index) => (
               <View key={mov.id} style={styles.timelineItem}>
@@ -374,7 +384,7 @@ export default function FPOLotDetailScreen() {
             style={styles.dispatchBtn}
             contentStyle={{ paddingVertical: Spacing.sm }}
           >
-            Create Dispatch Note
+            {t('fpo.createDispatch')}
           </Button>
         )}
       </ScrollView>

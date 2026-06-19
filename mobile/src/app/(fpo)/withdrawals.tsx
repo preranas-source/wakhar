@@ -13,18 +13,23 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
 import { formatDate } from '@/utils/formatters';
+import { useTranslation } from '@/i18n';
+import { useAuth } from '@/store/authStore';
 import api from '@/utils/api';
 
 export default function FPOWithdrawalRequestsScreen() {
   const scheme = useColorScheme();
   const colors = getColors(scheme);
   const router = useRouter();
+  const { t } = useTranslation();
+  const { isAuthenticated } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [requests, setRequests] = useState<any[]>([]);
 
   const fetchWithdrawals = async () => {
+    if (!isAuthenticated) return;
     try {
       // Fetch all activity logs of type system
       const { data: logs } = await api.get('/api/activity-logs?type=system');
@@ -64,8 +69,10 @@ export default function FPOWithdrawalRequestsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchWithdrawals();
-    }, [])
+      if (isAuthenticated) {
+        fetchWithdrawals();
+      }
+    }, [isAuthenticated])
   );
 
   const onRefresh = useCallback(async () => {
@@ -79,7 +86,7 @@ export default function FPOWithdrawalRequestsScreen() {
       'Approve Withdrawal',
       `Approve stock release for Receipt ${req.receipt.wr_code}? This will release the stock and mark the receipt as WITHDRAWN.`,
       [
-        { text: 'Cancel' },
+        { text: t('common.cancel') },
         {
           text: 'Approve & Release',
           onPress: async () => {
@@ -106,7 +113,7 @@ export default function FPOWithdrawalRequestsScreen() {
               fetchWithdrawals();
             } catch (err) {
               console.error('Failed to approve withdrawal', err);
-              Alert.alert('Error', 'Failed to approve withdrawal.');
+              Alert.alert(t('common.error') || 'Error', 'Failed to approve withdrawal.');
             }
           }
         }
@@ -119,7 +126,7 @@ export default function FPOWithdrawalRequestsScreen() {
       'Reject Withdrawal',
       `Reject stock release for Receipt ${req.receipt.wr_code}?`,
       [
-        { text: 'Cancel' },
+        { text: t('common.cancel') },
         {
           text: 'Reject Request',
           onPress: async () => {
@@ -135,7 +142,7 @@ export default function FPOWithdrawalRequestsScreen() {
               fetchWithdrawals();
             } catch (err) {
               console.error('Failed to reject withdrawal', err);
-              Alert.alert('Error', 'Failed to reject request.');
+              Alert.alert(t('common.error') || 'Error', 'Failed to reject request.');
             }
           }
         }
@@ -148,7 +155,7 @@ export default function FPOWithdrawalRequestsScreen() {
       <View style={styles.header}>
         <IconButton icon="arrow-left" iconColor={colors.text} size={24} onPress={() => router.back()} />
         <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Withdrawal Requests
+          {t('fpo.withdrawalRequests') || 'Withdrawal Requests'}
         </Text>
       </View>
 
@@ -166,7 +173,7 @@ export default function FPOWithdrawalRequestsScreen() {
           {requests.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyEmoji}>🌾</Text>
-              <Text style={[styles.emptyText, { color: colors.text }]}>No requests found</Text>
+              <Text style={[styles.emptyText, { color: colors.text }]}>{t('common.noData')}</Text>
               <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
                 Pending farmer stock withdrawal requests will appear here.
               </Text>
@@ -226,7 +233,7 @@ export default function FPOWithdrawalRequestsScreen() {
                           textColor={colors.error}
                           onPress={() => handleReject(req)}
                         >
-                          Reject
+                          {t('fpo.reject') || 'Reject'}
                         </Button>
                         <Button
                           mode="contained"
@@ -234,7 +241,7 @@ export default function FPOWithdrawalRequestsScreen() {
                           buttonColor={colors.primary}
                           onPress={() => handleApprove(req)}
                         >
-                          Approve
+                          {t('fpo.approve') || 'Approve'}
                         </Button>
                       </View>
                     )}

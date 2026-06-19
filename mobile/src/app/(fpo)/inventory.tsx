@@ -9,8 +9,9 @@ import {
 } from 'react-native';
 import { Text, Card, Surface, Chip, Divider } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
+import { useTranslation } from '@/i18n';
 import {
   formatWeight,
   getStatusColor,
@@ -25,8 +26,8 @@ export default function FPOInventoryScreen() {
   const colors = getColors(scheme);
   const router = useRouter();
   const { fpo } = useAuth();
-  
-  const currentFpoId = fpo?.id || 1;
+  const { t } = useTranslation();
+  const { filter } = useLocalSearchParams();
 
   const [loading, setLoading] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
@@ -38,12 +39,16 @@ export default function FPOInventoryScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (filter) {
+        setSelectedFilter(filter as string);
+      }
       const fetchData = async () => {
+        if (!fpo?.id) return;
         try {
           const [commRes, lotsRes, whRes] = await Promise.all([
             api.get('/api/commodities'),
             api.get('/api/lots/'),
-            api.get(`/api/warehouses?fpo_id=${currentFpoId}`)
+            api.get(`/api/warehouses?fpo_id=${fpo.id}`)
           ]);
           setCommodities(commRes.data);
           setLots(lotsRes.data);
@@ -55,14 +60,14 @@ export default function FPOInventoryScreen() {
         }
       };
       fetchData();
-    }, [currentFpoId])
+    }, [fpo?.id, filter])
   );
 
   const filters = [
-    { key: 'all', label: 'All Stock' },
-    { key: LotStatus.AVAILABLE, label: 'Available' },
-    { key: LotStatus.RESERVED, label: 'Reserved' },
-    { key: LotStatus.QC_PENDING, label: 'QC Pending' },
+    { key: 'all', label: t('common.all') },
+    { key: LotStatus.AVAILABLE, label: t('statuses.available') },
+    { key: LotStatus.RESERVED, label: t('statuses.reserved') },
+    { key: LotStatus.QC_PENDING, label: t('statuses.qc_pending') },
   ];
 
   // Group lots by commodity
@@ -101,7 +106,7 @@ export default function FPOInventoryScreen() {
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <View>
             <Text style={[styles.headerTitle, { color: colors.text }]}>
-              Stock Ledger
+              {t('fpo.stockLedger')}
             </Text>
             <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
               Current warehouse inventory overview
@@ -154,7 +159,7 @@ export default function FPOInventoryScreen() {
           {warehouses.length > 0 && (
             <View style={{ marginBottom: Spacing.xl }}>
               <Text style={{ fontSize: FontSize.md, fontWeight: '700', color: colors.text, marginBottom: Spacing.sm }}>
-                Capacity Status
+                {t('fpo.capacity')}
               </Text>
               {warehouses.map(wh => {
                 const capacity = Number(wh.capacity_mt) || 1;
@@ -191,7 +196,7 @@ export default function FPOInventoryScreen() {
           {ledgerData.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyEmoji}>📦</Text>
-              <Text style={[styles.emptyText, { color: colors.text }]}>No inventory records found</Text>
+              <Text style={[styles.emptyText, { color: colors.text }]}>{t('common.noData')}</Text>
               <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
                 There are no lots currently matching the selected status.
               </Text>
@@ -263,10 +268,10 @@ export default function FPOInventoryScreen() {
                             
                             <View style={styles.lotFooter}>
                               <Text style={[styles.lotWeight, { color: colors.text }]}>
-                                Weight: {formatWeight(lot.quantity_kg)}
+                                {t('lot.quantity')}: {formatWeight(lot.quantity_kg)}
                               </Text>
                               <Text style={[styles.lotLocation, { color: colors.textSecondary }]} numberOfLines={1}>
-                                📍 {wh ? wh.name : 'Warehouse'}
+                                📍 {wh ? wh.name : t('lot.warehouse')}
                               </Text>
                             </View>
                           </TouchableOpacity>

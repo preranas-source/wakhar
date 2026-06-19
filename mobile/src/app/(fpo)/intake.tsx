@@ -16,7 +16,7 @@ import { Text, TextInput, Button, Surface, HelperText, ToggleButton, Divider } f
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
-import { t } from '@/i18n';
+import { useTranslation } from '@/i18n';
 import { useAuth } from '@/store/authStore';
 import { IntakeType } from '@/types';
 import api from '@/utils/api';
@@ -25,6 +25,7 @@ export default function FPOIntakeScreen() {
   const colors = getColors(useColorScheme());
   const router = useRouter();
   const { fpo } = useAuth();
+  const { t } = useTranslation();
   
   const currentFpoId = fpo?.id || 1;
 
@@ -71,7 +72,7 @@ export default function FPOIntakeScreen() {
         console.error('Failed to load intake dependencies', err);
         // Only show alert if it's not an unauthorized error (e.g. from logout)
         if (err?.response?.status !== 401) {
-          Alert.alert('Error', 'Failed to load form data from server.');
+          Alert.alert(t('common.error') || 'Error', 'Failed to load form data from server.');
         }
       } finally {
         setLoadingDependencies(false);
@@ -81,31 +82,31 @@ export default function FPOIntakeScreen() {
   }, [currentFpoId, fpo?.id]);
 
   const getFarmerName = () => {
-    return farmers.find(f => f.id === selectedFarmerId)?.name || 'Select Farmer';
+    return farmers.find(f => f.id === selectedFarmerId)?.name || t('fpo.selectFarmer');
   };
 
   const getCommodityName = () => {
-    return commodities.find(c => c.id === selectedCommodityId)?.name || 'Select Commodity';
+    return commodities.find(c => c.id === selectedCommodityId)?.name || t('fpo.selectCommodity');
   };
 
   const getWarehouseName = () => {
-    return warehouses.find(w => w.id === selectedWarehouseId)?.name || 'Select Warehouse';
+    return warehouses.find(w => w.id === selectedWarehouseId)?.name || t('fpo.selectWarehouse');
   };
 
   const validate = () => {
     const tempErrors: Record<string, string> = {};
-    if (!selectedFarmerId) tempErrors.farmer = 'Farmer is required';
-    if (!selectedCommodityId) tempErrors.commodity = 'Commodity is required';
+    if (!selectedFarmerId) tempErrors.farmer = t('validation.farmerRequired');
+    if (!selectedCommodityId) tempErrors.commodity = t('validation.commodityRequired');
     if (!quantityKg || isNaN(Number(quantityKg)) || Number(quantityKg) <= 0) {
-      tempErrors.quantity = 'Provide a valid quantity in kg';
+      tempErrors.quantity = t('validation.validQuantity');
     }
     if (!bagCount || isNaN(Number(bagCount)) || Number(bagCount) <= 0) {
-      tempErrors.bags = 'Provide a valid bag count';
+      tempErrors.bags = t('validation.validBagCount');
     }
     if (moisturePct && (isNaN(Number(moisturePct)) || Number(moisturePct) < 0 || Number(moisturePct) > 100)) {
-      tempErrors.moisture = 'Moisture must be between 0% and 100%';
+      tempErrors.moisture = t('validation.validMoisture');
     }
-    if (!selectedWarehouseId) tempErrors.warehouse = 'Warehouse is required';
+    if (!selectedWarehouseId) tempErrors.warehouse = t('validation.warehouseRequired');
 
     setErrors(tempErrors);
     return Object.keys(tempErrors).length === 0;
@@ -135,7 +136,7 @@ export default function FPOIntakeScreen() {
       const response = await api.post('/api/lots/', payload);
       
       Alert.alert(
-        'Intake Registered Successfully',
+        t('fpo.intakeSuccess'),
         `Lot code generated: ${response.data.lot_code}\nRegistered for farmer: ${getFarmerName()}\nQuantity: ${quantityKg} kg\n\nLot status set to QC_PENDING.`,
         [
           {
@@ -151,12 +152,12 @@ export default function FPOIntakeScreen() {
               router.push('/(fpo)/intake-list' as any);
             },
           },
-          { text: 'OK', onPress: () => {} },
+          { text: t('common.ok'), onPress: () => {} },
         ]
       );
     } catch (err) {
       console.error('Failed to submit intake', err);
-      Alert.alert('Error', 'Could not register intake lot. Please try again.');
+      Alert.alert(t('common.error') || 'Error', 'Could not register intake lot. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -235,7 +236,7 @@ export default function FPOIntakeScreen() {
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md }}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.headerTitle, { color: colors.text }]}>
-              New Commodity Intake
+              {t('fpo.newIntake')}
             </Text>
             <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
               Record incoming farmer deposits
@@ -261,7 +262,7 @@ export default function FPOIntakeScreen() {
           <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             <Surface style={[styles.formCard, { backgroundColor: colors.card }]} elevation={1}>
               {/* Intake Type */}
-              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Intake Flow</Text>
+              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{t('fpo.intakeType')}</Text>
               <View style={styles.toggleRow}>
                 <ToggleButton.Row
                   onValueChange={(val) => setIntakeType(val as IntakeType)}
@@ -280,7 +281,7 @@ export default function FPOIntakeScreen() {
                   />
                 </ToggleButton.Row>
                 <Text style={[styles.toggleLabel, { color: colors.text }]}>
-                  {intakeType === IntakeType.WALK_IN ? '🚶 Walk-In' : '📅 Pre-Registered'}
+                  {intakeType === IntakeType.WALK_IN ? `🚶 ${t('fpo.walkIn')}` : `📅 ${t('fpo.preRegistered')}`}
                 </Text>
               </View>
 
@@ -312,7 +313,7 @@ export default function FPOIntakeScreen() {
 
               {/* Variety */}
               <TextInput
-                label="Variety / Grade (e.g. Basmati, Lokwan)"
+                label={`${t('fpo.variety')} (Optional)`}
                 value={variety}
                 onChangeText={setVariety}
                 style={styles.input}
@@ -325,7 +326,7 @@ export default function FPOIntakeScreen() {
               <View style={styles.row}>
                 <View style={styles.col}>
                   <TextInput
-                    label="Net Quantity (kg) *"
+                    label={`${t('fpo.quantityKg')} *`}
                     value={quantityKg}
                     onChangeText={(text) => { setQuantityKg(text); setErrors(prev => ({ ...prev, quantity: '' })); }}
                     keyboardType="numeric"
@@ -339,7 +340,7 @@ export default function FPOIntakeScreen() {
 
                 <View style={styles.col}>
                   <TextInput
-                    label="Bag Count *"
+                    label={`${t('fpo.bagCount')} *`}
                     value={bagCount}
                     onChangeText={(text) => { setBagCount(text); setErrors(prev => ({ ...prev, bags: '' })); }}
                     keyboardType="numeric"
@@ -354,7 +355,7 @@ export default function FPOIntakeScreen() {
 
               {/* Moisture Content */}
               <TextInput
-                label="Moisture % (Optional)"
+                label={`${t('fpo.moisturePct')} (Optional)`}
                 value={moisturePct}
                 onChangeText={(text) => { setMoisturePct(text); setErrors(prev => ({ ...prev, moisture: '' })); }}
                 keyboardType="numeric"
@@ -381,7 +382,7 @@ export default function FPOIntakeScreen() {
 
               {/* Zone */}
               <TextInput
-                label="Zone / Rack Location (Optional)"
+                label={`${t('fpo.zone')} (Optional)`}
                 value={zone}
                 onChangeText={setZone}
                 placeholder="e.g. Zone A - Rack 3"
@@ -401,7 +402,7 @@ export default function FPOIntakeScreen() {
                 style={styles.submitBtn}
                 contentStyle={styles.submitBtnContent}
               >
-                Submit Intake Lot
+                {t('fpo.submitIntake')}
               </Button>
             </Surface>
           </ScrollView>
@@ -416,7 +417,7 @@ export default function FPOIntakeScreen() {
               <Text style={[styles.modalTitle, { color: colors.text }]}>
                 Select {pickerType ? pickerType.toUpperCase() : ''}
               </Text>
-              <Button onPress={() => setPickerType(null)} textColor={colors.primary}>Close</Button>
+              <Button onPress={() => setPickerType(null)} textColor={colors.primary}>{t('common.close')}</Button>
             </View>
             <Divider />
             {renderPickerItems()}

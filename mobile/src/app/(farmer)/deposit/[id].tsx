@@ -18,6 +18,7 @@ import {
   getStatusColor,
   getGradeColor,
 } from '@/utils/formatters';
+import { useTranslation } from '@/i18n';
 import api from '@/utils/api';
 
 export default function FarmerDepositDetailScreen() {
@@ -25,6 +26,7 @@ export default function FarmerDepositDetailScreen() {
   const colors = getColors(scheme);
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
   const [lot, setLot] = useState<any>(null);
@@ -77,7 +79,7 @@ export default function FarmerDepositDetailScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: colors.error }]}>
-            Deposit lot not found.
+            {t('errors.lotNotFound')}
           </Text>
           <IconButton icon="arrow-left" size={24} onPress={() => router.back()} />
         </View>
@@ -94,7 +96,7 @@ export default function FarmerDepositDetailScreen() {
       <View style={styles.header}>
         <IconButton icon="arrow-left" iconColor={colors.text} size={24} onPress={() => router.back()} />
         <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Deposit Details
+          {t('farmerDetail.depositDetails')}
         </Text>
       </View>
 
@@ -114,10 +116,10 @@ export default function FarmerDepositDetailScreen() {
             </View>
 
             <Text style={[styles.commodityTitle, { color: colors.text }]}>
-              {comm ? comm.name : 'Commodity'}
+              {comm ? comm.name : t('lot.commodity')}
             </Text>
             <Text style={[styles.varietyText, { color: colors.textSecondary }]}>
-              Variety: {lot.variety || 'N/A'}
+              {t('lot.variety')}: {lot.variety || 'N/A'}
             </Text>
 
             <Divider style={styles.divider} />
@@ -128,15 +130,15 @@ export default function FarmerDepositDetailScreen() {
                   {formatWeight(lot.quantity_kg)}
                 </Text>
                 <Text style={[styles.specLabel, { color: colors.textSecondary }]}>
-                  Net Weight
+                  {t('farmerDetail.netWeight')}
                 </Text>
               </View>
               <View style={styles.specItem}>
                 <Text style={[styles.specVal, { color: colors.text }]}>
-                  {lot.bag_count} bags
+                  {lot.bag_count} {t('units.bags')}
                 </Text>
                 <Text style={[styles.specLabel, { color: colors.textSecondary }]}>
-                  Quantity
+                  {t('lot.quantity')}
                 </Text>
               </View>
               <View style={styles.specItem}>
@@ -144,7 +146,7 @@ export default function FarmerDepositDetailScreen() {
                   {lot.moisture_pct ? formatPercent(lot.moisture_pct) : '—'}
                 </Text>
                 <Text style={[styles.specLabel, { color: colors.textSecondary }]}>
-                  Moisture %
+                  {t('lot.moisture')} %
                 </Text>
               </View>
             </View>
@@ -155,13 +157,13 @@ export default function FarmerDepositDetailScreen() {
         <Card style={[styles.card, { backgroundColor: colors.card }]} elevation={1}>
           <Card.Content>
             <Text style={[styles.cardSectionTitle, { color: colors.text }]}>
-              Intake Info
+              {t('farmerDetail.intakeInfo')}
             </Text>
-            <InfoRow label="Intake Date" value={formatDate(lot.intake_date)} />
-            <InfoRow label="Warehouse" value={wh ? wh.name : 'N/A'} />
-            <InfoRow label="Storage Zone" value={lot.zone || 'N/A'} />
-            <InfoRow label="Intake Type" value={lot.intake_type.replace('_', ' ').toUpperCase()} />
-            {lot.remarks && <InfoRow label="Remarks" value={lot.remarks} />}
+            <InfoRow label={t('lot.intakeDate')} value={formatDate(lot.intake_date)} />
+            <InfoRow label={t('lot.warehouse')} value={wh ? wh.name : 'N/A'} />
+            <InfoRow label={t('lot.zone')} value={lot.zone || 'N/A'} />
+            <InfoRow label={t('fpo.intakeType')} value={lot.intake_type.replace('_', ' ').toUpperCase()} />
+            {lot.remarks && <InfoRow label={t('fpo.remarks')} value={lot.remarks} />}
           </Card.Content>
         </Card>
 
@@ -170,7 +172,7 @@ export default function FarmerDepositDetailScreen() {
           <Card.Content>
             <View style={styles.sectionHeaderRow}>
               <Text style={[styles.cardSectionTitle, { color: colors.text }]}>
-                Quality Certificate
+                {t('farmerDetail.qualityCertificate')}
               </Text>
               {qc ? (
                 <Surface style={[styles.badge, { backgroundColor: gradeColor + '15' }]} elevation={0}>
@@ -181,7 +183,7 @@ export default function FarmerDepositDetailScreen() {
               ) : (
                 <Surface style={[styles.badge, { backgroundColor: colors.warningSurface }]} elevation={0}>
                   <Text style={[styles.badgeText, { color: colors.warning }]}>
-                    PENDING GRADING
+                    {t('farmerDetail.pendingGrading')}
                   </Text>
                 </Surface>
               )}
@@ -189,26 +191,26 @@ export default function FarmerDepositDetailScreen() {
 
             {qc ? (
               <View>
-                <InfoRow label="Certificate Code" value={qc.qc_code} />
-                <InfoRow label="Inspection Date" value={formatDate(qc.inspection_date)} />
+                <InfoRow label={t('farmerDetail.qualityCertificate')} value={qc.qc_code} />
+                <InfoRow label={t('fpo.qualityInspection')} value={formatDate(qc.inspection_date)} />
                 <Divider style={styles.subDivider} />
                 
                 <View style={styles.qcGrid}>
-                  <QCItem label="Moisture" value={formatPercent(qc.moisture_pct)} />
-                  <QCItem label="Foreign Matter" value={qc.foreign_matter_pct ? formatPercent(qc.foreign_matter_pct) : '0.0%'} />
-                  <QCItem label="Broken Grain" value={qc.broken_grain_pct ? formatPercent(qc.broken_grain_pct) : '0.0%'} />
-                  <QCItem label="Protein" value={qc.protein_pct ? formatPercent(qc.protein_pct) : '—'} />
+                  <QCItem label={t('lot.moisture')} value={formatPercent(qc.moisture_pct)} />
+                  <QCItem label={t('fpo.foreignMatterPct')} value={qc.foreign_matter_pct ? formatPercent(qc.foreign_matter_pct) : '0.0%'} />
+                  <QCItem label={t('fpo.brokenGrainPct')} value={qc.broken_grain_pct ? formatPercent(qc.broken_grain_pct) : '0.0%'} />
+                  <QCItem label={t('fpo.proteinPct')} value={qc.protein_pct ? formatPercent(qc.protein_pct) : '—'} />
                 </View>
                 {qc.remarks && (
                   <View style={styles.remarksBox}>
-                    <Text style={[styles.remarksLabel, { color: colors.textSecondary }]}>Remarks:</Text>
+                    <Text style={[styles.remarksLabel, { color: colors.textSecondary }]}>{t('fpo.remarks')}:</Text>
                     <Text style={[styles.remarksText, { color: colors.text }]}>{qc.remarks}</Text>
                   </View>
                 )}
               </View>
             ) : (
               <Text style={[styles.helperText, { color: colors.textSecondary }]}>
-                This lot is currently awaiting quality checks and grading. A warehouse receipt will be issued upon grading completion.
+                {t('statuses.qc_pending')}
               </Text>
             )}
           </Card.Content>
@@ -220,7 +222,7 @@ export default function FarmerDepositDetailScreen() {
             <Card.Content>
               <View style={styles.sectionHeaderRow}>
                 <Text style={[styles.cardSectionTitle, { color: colors.text }]}>
-                  Warehouse Receipt
+                  {t('lot.warehouseReceipt')}
                 </Text>
                 <Surface style={[styles.badge, { backgroundColor: colors.primarySurface }]} elevation={0}>
                   <Text style={[styles.badgeText, { color: colors.primary }]}>
@@ -229,14 +231,14 @@ export default function FarmerDepositDetailScreen() {
                 </Surface>
               </View>
               
-              <InfoRow label="Issue Date" value={formatDate(wr.issue_date)} />
-              <InfoRow label="Expiry Date" value={formatDate(wr.expiry_date)} />
-              <InfoRow label="Valuation" value={formatCurrency(wr.valuation)} />
-              <InfoRow label="Collateral Status" value={wr.collateral_status.toUpperCase()} />
+              <InfoRow label={t('receipt.issueDate')} value={formatDate(wr.issue_date)} />
+              <InfoRow label={t('receipt.expiryDate')} value={formatDate(wr.expiry_date)} />
+              <InfoRow label={t('receipt.valuation')} value={formatCurrency(wr.valuation)} />
+              <InfoRow label={t('receipt.collateral')} value={wr.collateral_status.toUpperCase()} />
               {wr.collateral_status !== 'none' && (
                 <View>
-                  <InfoRow label="Pledge Bank" value={wr.pledge_bank || '—'} />
-                  <InfoRow label="Loan Amount" value={formatCurrency(wr.loan_amount)} />
+                  <InfoRow label={t('receipt.pledgeBank')} value={wr.pledge_bank || '—'} />
+                  <InfoRow label={t('receipt.loanAmount')} value={formatCurrency(wr.loan_amount)} />
                 </View>
               )}
               
@@ -253,7 +255,7 @@ export default function FarmerDepositDetailScreen() {
         <Card style={[styles.card, { backgroundColor: colors.card }]} elevation={1}>
           <Card.Content>
             <Text style={[styles.cardSectionTitle, { color: colors.text }]}>
-              Lot Timeline
+              {t('farmerDetail.lotTimeline')}
             </Text>
             {movements.map((mov, index) => (
               <View key={mov.id} style={styles.timelineItem}>
@@ -270,7 +272,7 @@ export default function FarmerDepositDetailScreen() {
                   </Text>
                   {mov.remarks && (
                     <Text style={[styles.timelineRemarks, { color: colors.textSecondary }]}>
-                      Note: {mov.remarks}
+                      {t('farmerDetail.note')} {mov.remarks}
                     </Text>
                   )}
                 </View>

@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
 import { formatWeight, formatDate, getStatusColor } from '@/utils/formatters';
+import { useTranslation } from '@/i18n';
 import { useAuth } from '@/store/authStore';
 import api from '@/utils/api';
 
@@ -18,9 +19,9 @@ export default function FPOIntakeListScreen() {
   const scheme = useColorScheme();
   const colors = getColors(scheme);
   const router = useRouter();
+  const { t } = useTranslation();
   
   const { fpo } = useAuth();
-  const currentFpoId = fpo?.id || 1;
 
   const [loading, setLoading] = useState(true);
   const [lots, setLots] = useState<any[]>([]);
@@ -30,11 +31,12 @@ export default function FPOIntakeListScreen() {
   useFocusEffect(
     useCallback(() => {
       const fetchData = async () => {
+        if (!fpo?.id) return;
         try {
           // Fetch lots, farmers, and commodities
           const [lotsRes, farmersRes, commRes] = await Promise.all([
             api.get('/api/lots/'),
-            api.get(`/api/farmers?fpo_id=${currentFpoId}`),
+            api.get(`/api/farmers?fpo_id=${fpo.id}`),
             api.get('/api/commodities')
           ]);
           
@@ -53,7 +55,7 @@ export default function FPOIntakeListScreen() {
       };
       
       fetchData();
-    }, [currentFpoId])
+    }, [fpo?.id])
   );
 
   const getFarmerName = (id: number) => farmers.find(f => f.id === id)?.name || 'Unknown Farmer';
@@ -65,7 +67,7 @@ export default function FPOIntakeListScreen() {
         <View style={styles.headerTitleRow}>
           <IconButton icon="arrow-left" iconColor={colors.text} size={24} onPress={() => router.replace('/(fpo)' as any)} />
           <Text style={[styles.headerTitle, { color: colors.text }]}>
-            Intake Ledger
+            {t('fpoMore.intakeLedger')}
           </Text>
         </View>
       </View>
@@ -83,7 +85,7 @@ export default function FPOIntakeListScreen() {
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyEmoji}>📦</Text>
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No intakes recorded yet.
+                {t('common.noData')}
               </Text>
             </View>
           }

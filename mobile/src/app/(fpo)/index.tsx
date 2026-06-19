@@ -13,7 +13,7 @@ import { Text, Card, Surface, ProgressBar, Avatar } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
-import { t } from '@/i18n';
+import { useTranslation } from '@/i18n';
 import {
   formatRelativeTime,
   getGradeColor,
@@ -28,7 +28,8 @@ export default function FPODashboardScreen() {
   const scheme = useColorScheme();
   const colors = getColors(scheme);
   const router = useRouter();
-  const { fpo } = useAuth();
+  const { fpo, isAuthenticated } = useAuth();
+  const { t } = useTranslation();
   
   const currentFpo = fpo || { id: 1, name: 'Wai FPO' };
 
@@ -37,6 +38,7 @@ export default function FPODashboardScreen() {
   const [stats, setStats] = useState<any>(null);
 
   const fetchStats = async () => {
+    if (!isAuthenticated || !fpo?.id) return;
     try {
       const response = await api.get('/api/dashboard/stats');
       setStats(response.data);
@@ -49,8 +51,10 @@ export default function FPODashboardScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchStats();
-    }, [])
+      if (isAuthenticated && fpo?.id) {
+        fetchStats();
+      }
+    }, [isAuthenticated, fpo?.id])
   );
 
   const onRefresh = useCallback(async () => {
@@ -91,7 +95,7 @@ export default function FPODashboardScreen() {
         {/* Title */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>
-            {currentFpo.name} Dashboard
+            {currentFpo.name} {t('tabs.dashboard')}
           </Text>
           <Text style={[styles.subTitle, { color: colors.textSecondary }]}>
             Real-time warehouse operations
@@ -110,7 +114,7 @@ export default function FPODashboardScreen() {
               <Text style={[styles.val, { color: colors.text }]}>
                 {Number(stats.total_stock_mt).toFixed(1)} MT
               </Text>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Total Stock</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>{t('fpo.totalStock')}</Text>
             </Card.Content>
           </Card>
 
@@ -122,7 +126,7 @@ export default function FPODashboardScreen() {
             <Card.Content style={styles.cardContent}>
               <Text style={styles.emoji}>📦</Text>
               <Text style={[styles.val, { color: colors.text }]}>{stats.total_lots}</Text>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Active Lots</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>{t('fpo.activeLots')}</Text>
             </Card.Content>
           </Card>
 
@@ -134,7 +138,7 @@ export default function FPODashboardScreen() {
             <Card.Content style={styles.cardContent}>
               <Text style={styles.emoji}>🧑‍🌾</Text>
               <Text style={[styles.val, { color: colors.text }]}>{stats.total_farmers}</Text>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Registered Farmers</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>{t('fpo.registeredFarmers')}</Text>
             </Card.Content>
           </Card>
 
@@ -146,7 +150,7 @@ export default function FPODashboardScreen() {
             <Card.Content style={styles.cardContent}>
               <Text style={styles.emoji}>🏢</Text>
               <Text style={[styles.val, { color: colors.text }]}>{stats.total_warehouses}</Text>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Warehouses</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>{t('fpo.warehouses')}</Text>
             </Card.Content>
           </Card>
         </View>
@@ -155,7 +159,7 @@ export default function FPODashboardScreen() {
         <Card style={[styles.sectionCard, { backgroundColor: colors.card }]} elevation={1}>
           <Card.Content>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Grade Distribution
+              {t('fpo.gradeDistribution')}
             </Text>
             {Object.entries(stats.lots_by_grade).length === 0 && (
               <Text style={{ color: colors.textSecondary, fontStyle: 'italic' }}>No graded lots yet.</Text>
@@ -184,7 +188,7 @@ export default function FPODashboardScreen() {
         <Card style={[styles.sectionCard, { backgroundColor: colors.card }]} elevation={1}>
           <Card.Content>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Status Overview
+              {t('fpo.statusOverview')}
             </Text>
             <View style={styles.chipContainer}>
               {Object.entries(stats.lots_by_status).length === 0 && (
@@ -209,7 +213,7 @@ export default function FPODashboardScreen() {
 
         {/* Recent Operations Activity Feed */}
         <Text style={[styles.feedTitle, { color: colors.text }]}>
-          Recent Activities
+          {t('fpo.recentActivity')}
         </Text>
         {stats.recent_activity.length === 0 && (
           <Text style={{ color: colors.textSecondary, marginLeft: Spacing.sm }}>No recent activity.</Text>

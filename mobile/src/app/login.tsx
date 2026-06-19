@@ -22,7 +22,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
-import { t } from '@/i18n';
+import { useTranslation } from '@/i18n';
 import { Colors, Spacing, BorderRadius, FontSize, getColors } from '@/constants/theme';
 import { useAuth } from '@/store/authStore';
 import { UserRole } from '@/types';
@@ -40,6 +40,7 @@ export default function LoginScreen() {
   const colors = getColors(colorScheme);
   const router = useRouter();
   const { login } = useAuth();
+  const { t } = useTranslation();
 
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');

@@ -33,7 +33,7 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Not found")
     return item
 
-from app.models import WarehouseReceipt, CommodityLot, Commodity
+from app.models import WarehouseReceipt, CommodityLot, Commodity, Warehouse
 
 @router.post("/", response_model=WarehouseReceiptResponse, status_code=status.HTTP_201_CREATED)
 def create_item(data: WarehouseReceiptCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff']))):
@@ -45,7 +45,7 @@ def create_item(data: WarehouseReceiptCreate, db: Session = Depends(get_db), cur
             # Valuation = quantity_kg * base_rate
             data.valuation = float(lot.quantity_kg) * float(commodity.base_rate)
             
-    item = WarehouseReceipt(**data.model_dump())
+    item = WarehouseReceipt(**data.model_dump(exclude={'client_timestamp'}))
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -56,8 +56,11 @@ def update_item(item_id: int, data: WarehouseReceiptCreate, db: Session = Depend
     item = db.query(WarehouseReceipt).filter(WarehouseReceipt.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    if data.version is not None and data.version != item.version:
+        raise HTTPException(status_code=409, detail="Conflict: record has been modified by another user. Please refresh and try again.")
+    for key, value in data.model_dump(exclude_unset=True, exclude={'client_timestamp', 'version'}).items():
         setattr(item, key, value)
+    item.version += 1
     db.commit()
     db.refresh(item)
     return item
@@ -72,7 +75,7 @@ import random
 
 @router.post("/{item_id}/withdraw", response_model=WarehouseReceiptResponse)
 def withdraw_receipt(item_id: int, data: WithdrawRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    item = db.query(WarehouseReceipt).filter(WarehouseReceipt.id == item_id).first()
+    item = db.query(WarehouseReceipt).with_for_update().filter(WarehouseReceipt.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Warehouse Receipt not found")
 
@@ -82,7 +85,7 @@ def withdraw_receipt(item_id: int, data: WithdrawRequest, db: Session = Depends(
     if data.withdraw_kg <= 0 or data.withdraw_kg > float(item.quantity_kg):
         raise HTTPException(status_code=400, detail="Invalid withdrawal amount")
 
-    lot = db.query(CommodityLot).filter(CommodityLot.id == item.lot_id).first()
+    lot = db.query(CommodityLot).with_for_update().filter(CommodityLot.id == item.lot_id).first()
     warehouse = db.query(Warehouse).filter(Warehouse.id == lot.warehouse_id).first() if lot else None
 
     # Subtract qty

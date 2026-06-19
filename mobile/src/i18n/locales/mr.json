@@ -3,6 +3,7 @@
     "appName": "वखार WMS",
     "loading": "लोड होत आहे...",
     "error": "काहीतरी चूक झाली",
+    "success": "यशस्वी",
     "retry": "पुन्हा प्रयत्न करा",
     "cancel": "रद्द करा",
     "save": "जतन करा",
@@ -29,7 +30,10 @@
     "logoutConfirm": "तुम्हाला खात्री आहे लॉगआउट करायचे?",
     "language": "भाषा",
     "settings": "सेटिंग्ज",
-    "profile": "प्रोफाइल"
+    "profile": "प्रोफाइल",
+    "active": "सक्रिय",
+    "inactive": "निष्क्रिय",
+    "quickActions": "त्वरित कृती"
   },
   "auth": {
     "login": "लॉगिन",
@@ -42,7 +46,13 @@
     "loginButton": "साइन इन करा",
     "loginError": "अवैध फोन नंबर किंवा पासवर्ड",
     "forgotPassword": "पासवर्ड विसरलात?",
-    "selectRole": "पुढे जाण्यासाठी तुमची भूमिका निवडा"
+    "selectRole": "पुढे जाण्यासाठी तुमची भूमिका निवडा",
+    "fullName": "पूर्ण नाव",
+    "email": "ईमेल पत्ता",
+    "aadhaar": "आधार क्रमांक",
+    "village": "गाव",
+    "bankAccount": "बँक खाते क्रमांक",
+    "bankIfsc": "बँक IFSC कोड"
   },
   "roles": {
     "farmer": "शेतकरी",
@@ -87,7 +97,11 @@
     "bankIFSC": "बँक IFSC",
     "depositHistory": "ठेवींचा इतिहास",
     "noDeposits": "ठेवी सापडल्या नाहीत",
-    "noReceipts": "गोदाम पावत्या सापडल्या नाहीत"
+    "noReceipts": "गोदाम पावत्या सापडल्या नाहीत",
+    "activeDeposits": "सक्रिय ठेवी",
+    "deposits": "ठेवी",
+    "viewReceipts": "पावत्या पहा",
+    "noDepositsRecorded": "अद्याप कोणतीही ठेव नोंदवली गेलेली नाही।"
   },
   "fpo": {
     "dashboardTitle": "FPO डॅशबोर्ड",
@@ -136,12 +150,40 @@
     "eWayBill": "ई-वे बिल क्र.",
     "dispatchSuccess": "पाठवणी नोट तयार: %{code}",
     "farmerDirectory": "शेतकरी निर्देशिका",
+    "farmersDir": "शेतकरी निर्देशिका",
+    "searchFarmer": "शेतकरी शोधा...",
+    "registerFarmer": "शेतकरी नोंदणी",
+    "farmerDetails": "शेतकरी तपशील",
+    "bankInfo": "बँक माहिती",
+    "village": "गाव",
+    "phone": "फोन नंबर",
     "warehouseOverview": "गोदाम विहंगावलोकन",
     "capacity": "क्षमता",
     "utilization": "वापर",
     "currentStock": "सध्याचा साठा",
     "offlineQueued": "ऑफलाइन — ऑनलाइन आल्यावर सिंक होईल",
-    "pendingSync": "%{count} सिंक प्रलंबित"
+    "pendingSync": "%{count} सिंक प्रलंबित",
+    "withdrawalRequests": "पैसे काढण्याच्या विनंत्या",
+    "reject": "नाकारा",
+    "approve": "मंजूर करा",
+    "spaceUtilization": "जागेचा वापर",
+    "manager": "व्यवस्थापक",
+    "hours": "कामाचे तास",
+    "permitted": "परवानगी असलेल्या वस्तू",
+    "profileNotFound": "प्रोफाइल सापडले नाही",
+    "farmerProfile": "शेतकरी प्रोफाइल",
+    "currentlyInWarehouse": "सध्या गोदामात",
+    "activeCommodities": "सक्रिय वस्तू",
+    "physicalCount": "भौतिक ऑडिट",
+    "newStockAudit": "नवीन स्टॉक ऑडिट",
+    "systemRecordedStock": "सिस्टम रेकॉर्ड केलेला साठा",
+    "physicallyCountedStock": "प्रत्यक्ष मोजलेला साठा (MT)",
+    "remarksVariances": "टिप्पण्या / तफावत",
+    "submitAuditRecord": "ऑडिट रेकॉर्ड सबमिट करा",
+    "auditHistory": "ऑडिट इतिहास",
+    "system": "सिस्टम",
+    "actual": "वास्तविक",
+    "variance": "तफावत"
   },
   "lot": {
     "lotCode": "लॉट कोड",
@@ -212,5 +254,98 @@
     "bags": "पिशव्या",
     "perKg": "/किलो",
     "perMt": "/MT"
+  },
+  "login": {
+    "selectCountryCode": "देशाचा कोड निवडा"
+  },
+  "profile": {
+    "personalDetails": "वैयक्तिक तपशील",
+    "mobilePhone": "मोबाईल फोन",
+    "villageLocation": "गाव / ठिकाण",
+    "aadhaarCard": "आधार कार्ड",
+    "bankDetailsTitle": "बँक तपशील (पेआउटसाठी)",
+    "bankAccount": "बँक खाते",
+    "ifscCode": "IFSC कोड",
+    "registeredFpo": "नोंदणीकृत FPO",
+    "fpoName": "FPO चे नाव",
+    "fpoCode": "FPO कोड",
+    "regionState": "प्रदेश / राज्य",
+    "appLanguage": "अॅपची भाषा",
+    "changePassword": "पासवर्ड बदला",
+    "logout": "लॉगआउट",
+    "languageUpdated": "भाषा अद्यतनित केली",
+    "languageChangedSuccessfully": "भाषा यशस्वीरित्या बदलली!",
+    "farmerId": "शेतकरी आयडी:"
+  },
+  "fpoMore": {
+    "role": "भूमिका:",
+    "intakeLedger": "आवक खातेवही",
+    "intakeLedgerDesc": "सर्व प्राप्त लॉट्स आणि गुणवत्ता स्थिती पहा",
+    "withdrawalRequests": "पैसे काढण्याच्या विनंत्या",
+    "withdrawalRequestsDesc": "शेतकरी स्टॉक रिलीझ विनंत्या मंजूर करा किंवा व्यवस्थापित करा",
+    "farmerDirectory": "शेतकरी निर्देशिका",
+    "farmerDirectoryDesc": "FPO नोंदणीकृत शेतकरी पहा आणि शोधा",
+    "warehouseOverview": "गोदाम विहंगावलोकन",
+    "warehouseOverviewDesc": "क्षमता आणि स्टोरेज वापर आकडेवारी पहा",
+    "appLanguage": "अॅपची भाषा",
+    "logout": "लॉगआउट",
+    "languageUpdated": "भाषा अद्यतनित केली"
+  },
+  "fpoGrading": {
+    "qcTitle": "गुणवत्ता नियंत्रण आणि ग्रेडिंग",
+    "evaluating": "मूल्यांकन करत आहे:",
+    "awardedGrade": "दिलेली श्रेणी *",
+    "parameters": "मापदंड",
+    "inspectionRemarks": "तपासणी टिप्पणी",
+    "issueCertificate": "प्रमाणपत्र आणि श्रेणी जारी करा"
+  },
+  "farmerPassword": {
+    "changePasswordTitle": "पासवर्ड बदला",
+    "currentPassword": "सध्याचा पासवर्ड",
+    "newPassword": "नवीन पासवर्ड",
+    "confirmNewPassword": "नवीन पासवर्डची पुष्टी करा",
+    "updatePassword": "पासवर्ड अपडेट करा",
+    "passwordInstructions": "कृपया तुमचा सध्याचा पासवर्ड आणि तुमचा इच्छित नवीन पासवर्ड टाका."
+  },
+  "farmerDeposits": {
+    "noDepositsSubtext": "निवडलेल्या फिल्टरशी जुळणाऱ्या ठेवी येथे दिसतील."
+  },
+  "farmerDetail": {
+    "depositDetails": "ठेव तपशील",
+    "intakeInfo": "आवक माहिती",
+    "qualityCertificate": "गुणवत्ता प्रमाणपत्र",
+    "pendingGrading": "ग्रेडिंग प्रलंबित",
+    "lotTimeline": "लॉट टाइमलाइन",
+    "netWeight": "निव्वळ वजन",
+    "receiptDetails": "पावती तपशील",
+    "estimatedValue": "अंदाजे बाजार मूल्य",
+    "commodityDetails": "वस्तू तपशील",
+    "receiptInfo": "पावती माहिती",
+    "enamStatus": "eNAM बाजार स्थिती",
+    "submitted": "सबमिट केले",
+    "notSubmitted": "सबमिट केलेले नाही",
+    "collateralPledging": "तारण आणि बँक कर्ज",
+    "requestWithdrawal": "स्टॉक काढण्याची विनंती करा",
+    "note": "टीप:",
+    "pledge": "तारण:",
+    "expires": "मुदत संपेल:",
+    "cancel": "रद्द करा",
+    "confirmWithdrawal": "काढण्याची पुष्टी करा"
+  },
+  "errors": {
+    "lotNotFound": "लॉट सापडला नाही.",
+    "receiptNotFound": "गोदाम पावती सापडली नाही.",
+    "actionBlocked": "कृती अवरोधित केली",
+    "collateralBlocked": "ही पावती सक्रिय कर्जासाठी तारण म्हणून ठेवली आहे. स्टॉक काढण्याची विनंती करण्यापूर्वी तारण सोडवण्यासाठी तुम्हाला कर्जाची परतफेड करावी लागेल.",
+    "withdrawalSubmitted": "तुमच्या पैसे काढण्याच्या विनंतीवर प्रक्रिया केली गेली आहे.",
+    "withdrawalInstructions": "कृपया तुमचा स्टॉक गोळा करण्यासाठी तुमच्या डिजिटल गेट पाससह गोदामाला भेट द्या."
+  },
+  "validation": {
+    "farmerRequired": "शेतकरी आवश्यक आहे",
+    "commodityRequired": "वस्तू आवश्यक आहे",
+    "validQuantity": "वैध प्रमाण आवश्यक आहे",
+    "validBagCount": "वैध पिशव्यांची संख्या आवश्यक आहे",
+    "validMoisture": "वैध आर्द्रता आवश्यक आहे",
+    "warehouseRequired": "गोदाम आवश्यक आहे"
   }
 }

@@ -21,10 +21,19 @@ class CommodityLotBase(BaseModel):
     intake_date: date
 
 class CommodityLotCreate(CommodityLotBase):
-    pass
+    client_timestamp: Optional[datetime] = None
+    version: Optional[int] = None
+
+from .farmer import FarmerResponse
+from .commodity import CommodityResponse
+from .warehouse import WarehouseResponse
 
 class CommodityLotResponse(CommodityLotBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    version: int
+    farmer: Optional[FarmerResponse] = None
+    commodity: Optional[CommodityResponse] = None
+    warehouse: Optional[WarehouseResponse] = None
     model_config = ConfigDict(from_attributes=True)

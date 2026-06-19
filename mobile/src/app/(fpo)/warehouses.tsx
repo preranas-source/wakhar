@@ -10,6 +10,7 @@ import { Text, Card, Surface, ProgressBar, IconButton } from 'react-native-paper
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
+import { useTranslation } from '@/i18n';
 import { useAuth } from '@/store/authStore';
 import api from '@/utils/api';
 
@@ -18,15 +19,16 @@ export default function FPOWarehousesScreen() {
   const colors = getColors(scheme);
   const router = useRouter();
   const { fpo } = useAuth();
+  const { t } = useTranslation();
 
-  const currentFpoId = fpo?.id || 1;
   const [loading, setLoading] = useState(true);
   const [fpoWarehouses, setFpoWarehouses] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchWarehouses = async () => {
+      if (!fpo?.id) return;
       try {
-        const response = await api.get(`/api/warehouses?fpo_id=${currentFpoId}`);
+        const response = await api.get(`/api/warehouses?fpo_id=${fpo.id}`);
         setFpoWarehouses(response.data);
       } catch (err) {
         console.error('Failed to load warehouses', err);
@@ -35,7 +37,7 @@ export default function FPOWarehousesScreen() {
       }
     };
     fetchWarehouses();
-  }, [currentFpoId]);
+  }, [fpo?.id]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -44,7 +46,7 @@ export default function FPOWarehousesScreen() {
         <View style={styles.headerTitleRow}>
           <IconButton icon="arrow-left" iconColor={colors.text} size={24} onPress={() => router.back()} />
           <Text style={[styles.headerTitle, { color: colors.text }]}>
-            Warehouse Overview
+            {t('fpo.warehouseOverview')}
           </Text>
         </View>
       </View>
@@ -61,7 +63,7 @@ export default function FPOWarehousesScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyEmoji}>🏢</Text>
-              <Text style={[styles.emptyText, { color: colors.text }]}>No warehouses registered</Text>
+              <Text style={[styles.emptyText, { color: colors.text }]}>{t('common.noData')}</Text>
             </View>
           }
           renderItem={({ item: wh }) => {
@@ -88,7 +90,7 @@ export default function FPOWarehousesScreen() {
                       elevation={0}
                     >
                       <Text style={[styles.badgeText, { color: wh.is_active ? colors.success : colors.error }]}>
-                        {wh.is_active ? 'ACTIVE' : 'INACTIVE'}
+                        {wh.is_active ? t('common.active')?.toUpperCase() || 'ACTIVE' : t('common.inactive')?.toUpperCase() || 'INACTIVE'}
                       </Text>
                     </Surface>
                   </View>
@@ -102,7 +104,7 @@ export default function FPOWarehousesScreen() {
                   <View style={styles.utilizationRow}>
                     <View style={styles.utilizationLabelRow}>
                       <Text style={[styles.utilLabel, { color: colors.textSecondary }]}>
-                        Space Utilization
+                        {t('fpo.spaceUtilization')}
                       </Text>
                       <Text style={[styles.utilVal, { color: colors.text }]}>
                         {(wh.current_stock_mt || 0).toFixed(1)} / {wh.capacity_mt} MT ({utilizationPercent}%)
@@ -113,10 +115,10 @@ export default function FPOWarehousesScreen() {
 
                   {/* Details */}
                   <View style={styles.detailsBox}>
-                    <InfoRow label="Manager" value={wh.contact_person || 'N/A'} />
-                    <InfoRow label="Phone" value={wh.contact_phone || 'N/A'} />
-                    <InfoRow label="Hours" value={wh.operating_hours || 'N/A'} />
-                    <InfoRow label="Permitted" value={wh.permitted_commodities || 'All'} />
+                    <InfoRow label={t('fpo.manager')} value={wh.contact_person || 'N/A'} />
+                    <InfoRow label={t('fpo.phone')} value={wh.contact_phone || 'N/A'} />
+                    <InfoRow label={t('fpo.hours')} value={wh.operating_hours || 'N/A'} />
+                    <InfoRow label={t('fpo.permitted')} value={wh.permitted_commodities || t('common.all') || 'All'} />
                   </View>
                 </Card.Content>
               </Card>

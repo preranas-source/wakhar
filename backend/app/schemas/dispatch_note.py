@@ -37,11 +37,13 @@ class DispatchNoteBase(BaseModel):
     delivery_date: Optional[datetime] = None
 
 class DispatchNoteCreate(DispatchNoteBase):
-    pass
+    client_timestamp: Optional[datetime] = None
+    version: Optional[int] = None
 
 class DispatchNoteResponse(DispatchNoteBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    version: int
     timeline_events: List[DispatchTimelineEventResponse] = []
     model_config = ConfigDict(from_attributes=True)

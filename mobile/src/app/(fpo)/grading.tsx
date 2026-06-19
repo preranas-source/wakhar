@@ -13,6 +13,7 @@ import { Text, TextInput, Button, Surface, Chip, HelperText, Divider } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
+import { useTranslation } from '@/i18n';
 import { QCGrade } from '@/types';
 import { useAuth } from '@/store/authStore';
 import api from '@/utils/api';
@@ -22,6 +23,7 @@ export default function FPOGradingScreen() {
   const router = useRouter();
   const { lotId } = useLocalSearchParams();
   const { user } = useAuth();
+  const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,7 +53,7 @@ export default function FPOGradingScreen() {
         setComm(commRes.data);
       } catch (err) {
         console.error('Failed to fetch lot for grading', err);
-        Alert.alert('Error', 'Failed to load lot data');
+        Alert.alert(t('common.error') || 'Error', 'Failed to load lot data');
       } finally {
         setLoading(false);
       }
@@ -71,8 +73,8 @@ export default function FPOGradingScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: colors.error }]}>Lot not specified.</Text>
-          <Button onPress={() => router.back()}>Go Back</Button>
+          <Text style={[styles.errorText, { color: colors.error }]}>{t('errors.lotNotFound') || 'Lot not specified.'}</Text>
+          <Button onPress={() => router.back()}>{t('common.back')}</Button>
         </View>
       </SafeAreaView>
     );
@@ -126,10 +128,61 @@ export default function FPOGradingScreen() {
 
     try {
       // Create Quality Record
-      await api.post('/api/quality-records/', qcPayload);
+      const qcRes = await api.post('/api/quality-records/', qcPayload);
       
       // Update Lot status and grade
-      await api.put(`/api/lots/${lotId}`, lotUpdatePayload);
+      const lotRes = await api.put(`/api/lots/${lotId}`, lotUpdatePayload);
+
+      // Immediately update local SQLite cache for instant UI response (even if offline/cached)
+      try {
+        const { setCachedResponse, getCachedResponse } = require('@/utils/database');
+        
+        let localQcRecord = qcRes.data;
+        if (qcRes.data && qcRes.data.queued) {
+          localQcRecord = {
+            id: Date.now(),
+            qc_code: certCode,
+            lot_id: Number(lotId),
+            moisture_pct: Number(moisture),
+            foreign_matter_pct: foreignMatter ? Number(foreignMatter) : null,
+            broken_grain_pct: brokenGrain ? Number(brokenGrain) : null,
+            protein_pct: protein ? Number(protein) : null,
+            grade_awarded: selectedGrade,
+            inspected_by: user?.id || 1,
+            inspection_date: new Date().toISOString(),
+            remarks: remarks || null
+          };
+        }
+
+        let localLotData = lotRes.data;
+        if (lotRes.data && lotRes.data.queued) {
+          localLotData = {
+            ...lot,
+            status: newStatus,
+            grade: selectedGrade,
+            moisture_pct: Number(moisture)
+          };
+        }
+
+        // Cache the newly created quality record (wrapped in a list) with trailing slash
+        await setCachedResponse(`/api/quality-records/?lot_id=${lotId}`, [localQcRecord]);
+        
+        // Cache the updated lot details
+        await setCachedResponse(`/api/lots/${lotId}`, localLotData);
+        
+        // Cache the updated lists in general lot list
+        const cachedLots: any = await getCachedResponse('/api/lots/');
+        if (cachedLots && Array.isArray(cachedLots)) {
+          const updatedLots = cachedLots.map((l: any) => 
+            l.id === Number(lotId) 
+              ? { ...l, status: newStatus, grade: selectedGrade, moisture_pct: Number(moisture) }
+              : l
+          );
+          await setCachedResponse('/api/lots/', updatedLots);
+        }
+      } catch (cacheErr) {
+        console.warn('Failed to update local cache after grading', cacheErr);
+      }
 
       Alert.alert(
         'Grading Certificate Created',
@@ -138,14 +191,14 @@ export default function FPOGradingScreen() {
           {
             text: 'OK',
             onPress: () => {
-              router.replace(`/(fpo)/lot/${lotId}` as any);
+              router.replace({ pathname: '/(fpo)/inventory', params: { filter: 'qc_pending' } } as any);
             },
           },
         ]
       );
     } catch (err) {
       console.error('Failed to submit QC', err);
-      Alert.alert('Error', 'Failed to submit quality record.');
+      Alert.alert(t('common.error') || 'Error', 'Failed to submit quality record.');
     } finally {
       setIsSubmitting(false);
     }
@@ -160,10 +213,10 @@ export default function FPOGradingScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>
-            Quality Control & Grading
+            {t('fpoGrading.qcTitle')}
           </Text>
           <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
-            Evaluating: {lot.lot_code} ({comm ? comm.name : ''})
+            {t('fpoGrading.evaluating')} {lot.lot_code} ({comm ? comm.name : ''})
           </Text>
         </View>
 
@@ -171,7 +224,7 @@ export default function FPOGradingScreen() {
           <Surface style={[styles.formCard, { backgroundColor: colors.card }]} elevation={1}>
             
             {/* Grade Selection */}
-            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Awarded Grade *</Text>
+            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{t('fpoGrading.awardedGrade')}</Text>
             <View style={styles.gradeContainer}>
               {Object.values(QCGrade).map(grade => {
                 const active = selectedGrade === grade;
@@ -202,11 +255,11 @@ export default function FPOGradingScreen() {
             <Divider style={styles.divider} />
 
             {/* Quality Parameters */}
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Parameters</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('fpoGrading.parameters')}</Text>
 
             {/* Moisture input */}
             <TextInput
-              label="Moisture % *"
+              label={`${t('fpo.moisturePct')} *`}
               value={moisture}
               onChangeText={(text) => { setMoisture(text); setErrors(prev => ({ ...prev, moisture: '' })); }}
               keyboardType="numeric"
@@ -220,7 +273,7 @@ export default function FPOGradingScreen() {
 
             {/* Foreign Matter */}
             <TextInput
-              label="Foreign Matter %"
+              label={t('fpo.foreignMatterPct')}
               value={foreignMatter}
               onChangeText={(text) => { setForeignMatter(text); setErrors(prev => ({ ...prev, foreignMatter: '' })); }}
               keyboardType="numeric"
@@ -234,7 +287,7 @@ export default function FPOGradingScreen() {
 
             {/* Broken Grain */}
             <TextInput
-              label="Broken Grain %"
+              label={t('fpo.brokenGrainPct')}
               value={brokenGrain}
               onChangeText={(text) => { setBrokenGrain(text); setErrors(prev => ({ ...prev, brokenGrain: '' })); }}
               keyboardType="numeric"
@@ -248,7 +301,7 @@ export default function FPOGradingScreen() {
 
             {/* Protein */}
             <TextInput
-              label="Protein % (Optional)"
+              label={`${t('fpo.proteinPct')} (Optional)`}
               value={protein}
               onChangeText={(text) => { setProtein(text); setErrors(prev => ({ ...prev, protein: '' })); }}
               keyboardType="numeric"
@@ -262,7 +315,7 @@ export default function FPOGradingScreen() {
 
             {/* Remarks */}
             <TextInput
-              label="Inspection Remarks"
+              label={t('fpoGrading.inspectionRemarks')}
               value={remarks}
               onChangeText={setRemarks}
               multiline
@@ -283,7 +336,7 @@ export default function FPOGradingScreen() {
               style={styles.submitBtn}
               contentStyle={{ paddingVertical: Spacing.xs }}
             >
-              Issue Certificate & Grade
+              {t('fpoGrading.issueCertificate')}
             </Button>
           </Surface>
         </ScrollView>

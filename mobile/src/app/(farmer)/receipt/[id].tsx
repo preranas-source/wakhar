@@ -11,7 +11,7 @@ import { Text, Card, Surface, IconButton, Button, Divider, Portal, Dialog, TextI
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
-import { t } from '@/i18n';
+import { useTranslation } from '@/i18n';
 import { useAuth } from '@/store/authStore';
 import {
   formatWeight,
@@ -26,6 +26,7 @@ export default function FarmerReceiptDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const { farmerProfile } = useAuth();
+  const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
   const [wr, setWr] = useState<any>(null);
@@ -77,7 +78,7 @@ export default function FarmerReceiptDetailScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: colors.error }]}>
-            Warehouse receipt not found.
+            {t('errors.receiptNotFound')}
           </Text>
           <IconButton icon="arrow-left" size={24} onPress={() => router.back()} />
         </View>
@@ -88,9 +89,9 @@ export default function FarmerReceiptDetailScreen() {
   const handleWithdrawalRequest = () => {
     if (wr.collateral_status === 'disbursed' || wr.collateral_status === 'applied') {
       Alert.alert(
-        'Action Blocked',
-        'This receipt is pledged as collateral for an active loan. You must repay the loan to release the collateral before requesting a stock withdrawal.',
-        [{ text: 'OK' }]
+        t('errors.actionBlocked'),
+        t('errors.collateralBlocked'),
+        [{ text: t('common.ok') }]
       );
     } else {
       setDialogVisible(true);
@@ -99,7 +100,7 @@ export default function FarmerReceiptDetailScreen() {
 
   const confirmWithdrawal = async () => {
     if (!withdrawQty || isNaN(Number(withdrawQty)) || Number(withdrawQty) <= 0 || Number(withdrawQty) > Number(wr.quantity_kg)) {
-      Alert.alert('Error', 'Please enter a valid withdrawal quantity.');
+      Alert.alert(t('common.error') || 'Error', 'Please enter a valid withdrawal quantity.');
       return;
     }
 
@@ -120,12 +121,12 @@ export default function FarmerReceiptDetailScreen() {
       setDialogVisible(false);
       Alert.alert(
         'Request Submitted',
-        'Your request for withdrawal has been processed. Please visit the warehouse with your Digital Gate Pass to collect your stock.',
-        [{ text: 'OK', onPress: () => router.replace('/(farmer)/receipts' as any) }]
+        t('errors.withdrawalSubmitted') + ' ' + t('errors.withdrawalInstructions'),
+        [{ text: t('common.ok'), onPress: () => router.replace('/(farmer)/receipts' as any) }]
       );
     } catch (err: any) {
       console.error('Failed to process withdrawal', err);
-      Alert.alert('Error', err.response?.data?.detail || 'Failed to process withdrawal request.');
+      Alert.alert(t('common.error') || 'Error', err.response?.data?.detail || 'Failed to process withdrawal request.');
     } finally {
       setIsWithdrawing(false);
     }
@@ -137,14 +138,14 @@ export default function FarmerReceiptDetailScreen() {
       <View style={styles.header}>
         <IconButton icon="arrow-left" iconColor={colors.text} size={24} onPress={() => router.back()} />
         <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Receipt Details
+          {t('farmerDetail.receiptDetails')}
         </Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Large Valuation Header */}
         <Surface style={[styles.valHeader, { backgroundColor: colors.primary }]} elevation={2}>
-          <Text style={styles.valLabel}>Estimated Market Value</Text>
+          <Text style={styles.valLabel}>{t('farmerDetail.estimatedValue')}</Text>
           <Text style={styles.valAmount}>{formatCurrency(wr.valuation)}</Text>
           <Text style={styles.wrCodeText}>{wr.wr_code}</Text>
         </Surface>
@@ -153,12 +154,12 @@ export default function FarmerReceiptDetailScreen() {
         <Card style={[styles.card, { backgroundColor: colors.card }]} elevation={1}>
           <Card.Content>
             <Text style={[styles.cardTitle, { color: colors.text }]}>
-              Commodity Details
+              {t('farmerDetail.commodityDetails')}
             </Text>
-            <InfoRow label="Commodity" value={comm ? comm.name : 'N/A'} />
-            <InfoRow label="Variety" value={lot ? lot.variety || 'N/A' : 'N/A'} />
-            <InfoRow label="Net Weight" value={formatWeight(wr.quantity_kg)} />
-            <InfoRow label="Quality Grade" value={wr.grade} />
+            <InfoRow label={t('lot.commodity')} value={comm ? comm.name : 'N/A'} />
+            <InfoRow label={t('lot.variety')} value={lot ? lot.variety || 'N/A' : 'N/A'} />
+            <InfoRow label={t('farmerDetail.netWeight')} value={formatWeight(wr.quantity_kg)} />
+            <InfoRow label={t('fpo.gradeAwarded')} value={wr.grade} />
           </Card.Content>
         </Card>
 
@@ -166,16 +167,16 @@ export default function FarmerReceiptDetailScreen() {
         <Card style={[styles.card, { backgroundColor: colors.card }]} elevation={1}>
           <Card.Content>
             <Text style={[styles.cardTitle, { color: colors.text }]}>
-              Receipt Info
+              {t('farmerDetail.receiptInfo')}
             </Text>
-            <InfoRow label="Receipt Status" value={(wr.status || 'active').toUpperCase()} />
-            <InfoRow label="Issue Date" value={formatDate(wr.issue_date)} />
-            <InfoRow label="Expiry Date" value={formatDate(wr.expiry_date)} />
-            <InfoRow label="Storage Location" value={wh ? wh.name : 'N/A'} />
+            <InfoRow label={t('receipt.status')} value={(wr.status || 'active').toUpperCase()} />
+            <InfoRow label={t('receipt.issueDate')} value={formatDate(wr.issue_date)} />
+            <InfoRow label={t('receipt.expiryDate')} value={formatDate(wr.expiry_date)} />
+            <InfoRow label={t('lot.warehouse')} value={wh ? wh.name : 'N/A'} />
             <Divider style={styles.divider} />
             <View style={styles.enamRow}>
               <Text style={[styles.enamLabel, { color: colors.textSecondary }]}>
-                eNAM Market Status
+                {t('farmerDetail.enamStatus')}
               </Text>
               <Surface
                 style={[
@@ -185,7 +186,7 @@ export default function FarmerReceiptDetailScreen() {
                 elevation={0}
               >
                 <Text style={{ color: wr.enam_submitted ? colors.success : colors.textSecondary, fontWeight: '700', fontSize: 11 }}>
-                  {wr.enam_submitted ? 'SUBMITTED' : 'NOT SUBMITTED'}
+                  {wr.enam_submitted ? t('farmerDetail.submitted') : t('farmerDetail.notSubmitted')}
                 </Text>
               </Surface>
             </View>
@@ -196,13 +197,13 @@ export default function FarmerReceiptDetailScreen() {
         <Card style={[styles.card, { backgroundColor: colors.card }]} elevation={1}>
           <Card.Content>
             <Text style={[styles.cardTitle, { color: colors.text }]}>
-              Collateral Pledging & Bank Loan
+              {t('farmerDetail.collateralPledging')}
             </Text>
-            <InfoRow label="Collateral Status" value={wr.collateral_status.toUpperCase()} />
+            <InfoRow label={t('receipt.collateral')} value={wr.collateral_status.toUpperCase()} />
             {wr.collateral_status !== 'none' && (
               <View>
-                <InfoRow label="Pledge Bank Partner" value={wr.pledge_bank || 'N/A'} />
-                <InfoRow label="Disbursed Loan Amount" value={formatCurrency(wr.loan_amount)} />
+                <InfoRow label={t('receipt.pledgeBank')} value={wr.pledge_bank || 'N/A'} />
+                <InfoRow label={t('receipt.loanAmount')} value={formatCurrency(wr.loan_amount)} />
               </View>
             )}
             
@@ -223,21 +224,20 @@ export default function FarmerReceiptDetailScreen() {
             contentStyle={styles.withdrawBtnContent}
             onPress={handleWithdrawalRequest}
           >
-            Request Stock Withdrawal
+            {t('farmerDetail.requestWithdrawal')}
           </Button>
         )}
       </ScrollView>
 
-      {/* Confirmation Dialog */}
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={() => setDialogVisible(false)} style={{ backgroundColor: colors.card }}>
-          <Dialog.Title style={{ color: colors.text }}>Request Stock Withdrawal</Dialog.Title>
+          <Dialog.Title style={{ color: colors.text }}>{t('farmerDetail.requestWithdrawal')}</Dialog.Title>
           <Dialog.Content>
             <Text style={{ color: colors.textSecondary, lineHeight: 20, marginBottom: Spacing.md }}>
               Enter the amount of stock you wish to withdraw from this receipt. Maximum available: {formatWeight(wr.quantity_kg)}.
             </Text>
             <TextInput
-              label="Withdrawal Quantity (kg)"
+              label={`${t('farmer.withdrawalQty')}`}
               value={withdrawQty}
               onChangeText={setWithdrawQty}
               keyboardType="numeric"
@@ -247,8 +247,8 @@ export default function FarmerReceiptDetailScreen() {
             />
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setDialogVisible(false)} textColor={colors.textSecondary} disabled={isWithdrawing}>Cancel</Button>
-            <Button onPress={confirmWithdrawal} textColor={colors.primary} loading={isWithdrawing} disabled={isWithdrawing}>Confirm Withdrawal</Button>
+            <Button onPress={() => setDialogVisible(false)} textColor={colors.textSecondary} disabled={isWithdrawing}>{t('common.cancel')}</Button>
+            <Button onPress={confirmWithdrawal} textColor={colors.primary} loading={isWithdrawing} disabled={isWithdrawing}>{t('farmerDetail.confirmWithdrawal')}</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>

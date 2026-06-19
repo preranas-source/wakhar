@@ -23,3 +23,4 @@ class TimestampMixin:
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+    version = Column(Integer, default=1, nullable=False)

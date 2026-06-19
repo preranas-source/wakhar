@@ -4,6 +4,8 @@ import { Slot, useRouter, useSegments } from 'expo-router';
 import { PaperProvider } from 'react-native-paper';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { AuthProvider, useAuth } from '@/store/authStore';
+import { LanguageProvider } from '@/i18n';
+import { NetworkProvider } from '@/store/networkStore';
 
 function NavigationGate() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -59,12 +61,16 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
-    <AuthProvider>
-      <PaperProvider>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <NavigationGate />
-        </ThemeProvider>
-      </PaperProvider>
-    </AuthProvider>
+    <NetworkProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <PaperProvider>
+            <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+              <NavigationGate />
+            </ThemeProvider>
+          </PaperProvider>
+        </AuthProvider>
+      </LanguageProvider>
+    </NetworkProvider>
   );
 }

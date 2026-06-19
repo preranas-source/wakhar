@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
 import { formatWeight } from '@/utils/formatters';
+import { useTranslation } from '@/i18n';
 import { useAuth } from '@/store/authStore';
 import api from '@/utils/api';
 
@@ -19,9 +20,8 @@ export default function FPOFarmersScreen() {
   const colors = getColors(scheme);
   const router = useRouter();
   const { fpo } = useAuth();
+  const { t } = useTranslation();
 
-  const currentFpoId = fpo?.id || 1;
-  
   const [loading, setLoading] = useState(true);
   const [farmers, setFarmers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -29,8 +29,9 @@ export default function FPOFarmersScreen() {
   useFocusEffect(
     useCallback(() => {
       const fetchFarmers = async () => {
+        if (!fpo?.id) return;
         try {
-          const response = await api.get(`/api/farmers?fpo_id=${currentFpoId}`);
+          const response = await api.get(`/api/farmers?fpo_id=${fpo.id}`);
           setFarmers(response.data);
         } catch (err) {
           console.error('Failed to load farmers', err);
@@ -39,7 +40,7 @@ export default function FPOFarmersScreen() {
         }
       };
       fetchFarmers();
-    }, [currentFpoId])
+    }, [fpo?.id])
   );
 
   // Filter farmers by search query
@@ -60,7 +61,7 @@ export default function FPOFarmersScreen() {
         <View style={styles.headerTitleRow}>
           <IconButton icon="arrow-left" iconColor={colors.text} size={24} onPress={() => router.back()} />
           <Text style={[styles.headerTitle, { color: colors.text }]}>
-            Farmers Directory
+            {t('fpo.farmersDir')}
           </Text>
         </View>
       </View>
@@ -68,7 +69,7 @@ export default function FPOFarmersScreen() {
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <Searchbar
-          placeholder="Search farmer name, village..."
+          placeholder={t('fpo.searchFarmer')}
           onChangeText={setSearchQuery}
           value={searchQuery}
           style={[styles.searchBar, { backgroundColor: colors.card }]}
@@ -90,7 +91,7 @@ export default function FPOFarmersScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyEmoji}>🧑‍🌾</Text>
-              <Text style={[styles.emptyText, { color: colors.text }]}>No farmers found</Text>
+              <Text style={[styles.emptyText, { color: colors.text }]}>{t('common.noData')}</Text>
             </View>
           }
           renderItem={({ item: farmer }) => {
@@ -114,15 +115,15 @@ export default function FPOFarmersScreen() {
                   <View style={styles.infoCol}>
                     <Text style={[styles.name, { color: colors.text }]}>{farmer.name}</Text>
                     <Text style={[styles.subText, { color: colors.textSecondary }]}>
-                      ID: {farmer.farmer_code} | Village: {farmer.village || 'N/A'}
+                      ID: {farmer.farmer_code} | {t('fpo.village')}: {farmer.village || 'N/A'}
                     </Text>
                     <Text style={[styles.subText, { color: colors.textSecondary }]}>
-                      Phone: {farmer.phone}
+                      {t('fpo.phone')}: {farmer.phone}
                     </Text>
                   </View>
                   <View style={styles.depositCol}>
                     <Text style={[styles.depositLabel, { color: colors.textSecondary }]}>
-                      Deposits
+                      {t('farmer.deposits')}
                     </Text>
                     <Text style={[styles.depositVal, { color: colors.primary }]}>
                       {formatWeight(farmer.total_deposit_kg || 0)}

@@ -35,17 +35,34 @@ export default function App({ roleKey: propRoleKey }) {
 
   const rawRole = propRoleKey || params.roleKey || localStorage.getItem('role') || 'fpo_manager';
   const role = (rawRole === 'fpo_manager' || rawRole === 'fpo_staff') ? 'fpo' : rawRole;
-  const activeTab = params.tabName || (rawRole === 'fpo_staff' ? 'farmer' : rawRole === 'farmer' ? 'farmer' : 'dashboard');
+  const activeTab = params.tabName || (
+    rawRole === 'fpo_staff' ? 'farmer' : 
+    rawRole === 'farmer' ? 'farmer' : 
+    rawRole === 'market_partner' ? 'market' : 
+    'dashboard'
+  );
 
   const setRole = (newRole) => {
     localStorage.setItem('role', newRole);
-    const defaultTab = newRole === 'farmer' ? 'farmer' : 'dashboard';
-    navigate(`/${newRole}/${defaultTab}`);
+    const defaultTab = 
+      newRole === 'farmer' ? 'farmer' : 
+      newRole === 'market_partner' ? 'market' : 
+      'dashboard';
+    const pathPrefix = 
+      newRole === 'fpo_manager' ? 'dashboard' : 
+      newRole === 'fpo_staff' ? 'staff' : 
+      newRole === 'market_partner' ? 'marketplace' : 
+      newRole;
+    navigate(`/${pathPrefix}/${defaultTab}`);
   };
 
   const setActiveTab = (newTab) => {
     // Map raw role to correct path prefix
-    const pathPrefix = rawRole === 'fpo_manager' ? 'dashboard' : rawRole === 'fpo_staff' ? 'staff' : rawRole;
+    const pathPrefix = 
+      rawRole === 'fpo_manager' ? 'dashboard' : 
+      rawRole === 'fpo_staff' ? 'staff' : 
+      rawRole === 'market_partner' ? 'marketplace' : 
+      rawRole;
     navigate(`/${pathPrefix}/${newTab}`);
   };
 
@@ -165,7 +182,7 @@ export default function App({ roleKey: propRoleKey }) {
     };
 
     return {
-      id: wr.receipt_code,
+      id: wr.wr_code,
       dbId: wr.id,
       lotId: wr.lot?.lot_code || '',
       farmerId: wr.farmer?.farmer_code || `FM-${wr.farmer_id}`,
@@ -177,7 +194,10 @@ export default function App({ roleKey: propRoleKey }) {
       moisture: parseFloat(wr.lot?.moisture_pct || 0),
       grade: gradeLabels[wr.lot?.grade] || wr.lot?.grade || 'QC Pending',
       value: parseFloat(wr.valuation),
-      collateralStatus: pledgeStatusLabels[wr.pledge_status] || 'None',
+      collateralStatus: pledgeStatusLabels[wr.collateral_status] || 'None',
+      pledgeBank: wr.pledge_bank,
+      warehouse: wr.lot?.warehouse?.name || 'Unknown Warehouse',
+      zone: wr.lot?.zone || '',
       loanAmount: parseFloat(wr.loan_amount || 0),
       date: wr.issue_date ? new Date(wr.issue_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '',
       validity: wr.expiry_date ? new Date(wr.expiry_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''

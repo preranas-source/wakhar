@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime, timezone
@@ -11,6 +11,7 @@ from app.schemas.dispatch_note import (
     DispatchNoteCreate, DispatchNoteResponse,
     DispatchTimelineEventCreate, DispatchTimelineEventResponse
 )
+from app.utils.idempotency import get_idempotency_key, check_idempotency, store_idempotency
 
 router = APIRouter(prefix="/api/dispatch-notes", tags=["Dispatch Notes"], dependencies=[Depends(get_current_user)])
 
@@ -28,16 +29,21 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
 import uuid
 
 @router.post("/", response_model=DispatchNoteResponse, status_code=status.HTTP_201_CREATED)
-def create_item(data: DispatchNoteCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff', 'aggregator']))):
-    # Fetch original lot
-    original_lot = db.query(CommodityLot).filter(CommodityLot.id == data.lot_id).first()
+def create_item(request: Request, data: DispatchNoteCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff', 'aggregator']))):
+    key = get_idempotency_key(request)
+    existing = check_idempotency(key, db)
+    if existing:
+        return existing
+
+    # Fetch original lot with row-level lock
+    original_lot = db.query(CommodityLot).with_for_update().filter(CommodityLot.id == data.lot_id).first()
     if not original_lot:
         raise HTTPException(status_code=404, detail="Lot not found")
         
     if data.dispatch_quantity_kg > float(original_lot.quantity_kg):
         raise HTTPException(status_code=400, detail="Dispatch quantity exceeds available lot quantity")
 
-    dispatch_note = DispatchNote(**data.model_dump())
+    dispatch_note = DispatchNote(**data.model_dump(exclude={'client_timestamp'}))
 
     # Lot Splitting Logic
     if data.dispatch_quantity_kg < float(original_lot.quantity_kg):
@@ -91,12 +97,15 @@ def create_item(data: DispatchNoteCreate, db: Session = Depends(get_db), current
         from_warehouse_id=original_lot.warehouse_id,
         quantity_kg=data.dispatch_quantity_kg,
         performed_by_id=current_user.id,
-        movement_date=datetime.now(timezone.utc),
+        movement_date=data.client_timestamp or datetime.now(timezone.utc),
         remarks=f"Dispatched via {dispatch_note.dn_code}"
     )
     db.add(movement)
     
     db.commit()
+
+    store_idempotency(key, 201, DispatchNoteResponse.model_validate(dispatch_note).model_dump(mode='json'), db)
+
     return dispatch_note
 
 @router.put("/{item_id}", response_model=DispatchNoteResponse)
@@ -104,8 +113,11 @@ def update_item(item_id: int, data: DispatchNoteCreate, db: Session = Depends(ge
     item = db.query(DispatchNote).filter(DispatchNote.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    if data.version is not None and data.version != item.version:
+        raise HTTPException(status_code=409, detail="Conflict: record has been modified by another user. Please refresh and try again.")
+    for key, value in data.model_dump(exclude_unset=True, exclude={'client_timestamp', 'version'}).items():
         setattr(item, key, value)
+    item.version += 1
     db.commit()
     db.refresh(item)
     return item

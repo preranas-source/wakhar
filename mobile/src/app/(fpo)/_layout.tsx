@@ -7,8 +7,9 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { useColorScheme, Platform, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getColors } from '@/constants/theme';
-import { t } from '@/i18n';
+import { useTranslation } from '@/i18n';
 
 function TabIcon({ emoji }: { emoji: string }) {
   return <Text style={styles.emojiIcon}>{emoji}</Text>;
@@ -17,6 +18,8 @@ function TabIcon({ emoji }: { emoji: string }) {
 export default function FPOLayout() {
   const scheme = useColorScheme();
   const colors = getColors(scheme);
+  const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -29,8 +32,8 @@ export default function FPOLayout() {
           backgroundColor: colors.tabBar,
           borderTopColor: colors.border,
           borderTopWidth: StyleSheet.hairlineWidth,
-          height: Platform.OS === 'ios' ? 88 : 64,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 8,
+          height: 56 + Math.max(insets.bottom, 8),
+          paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: 8,
           elevation: 8,
           shadowColor: '#000',
@@ -123,7 +126,7 @@ export default function FPOLayout() {
       <Tabs.Screen
         name="more"
         options={{
-          title: 'More',
+          title: t('tabs.more') || 'More',
           tabBarIcon: () => <TabIcon emoji="⚙️" />,
         }}
       />

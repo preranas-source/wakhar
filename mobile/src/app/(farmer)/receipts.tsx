@@ -15,6 +15,7 @@ import {
   formatCurrency,
   formatDate,
 } from '@/utils/formatters';
+import { useTranslation } from '@/i18n';
 import { useAuth } from '@/store/authStore';
 import { WRStatus } from '@/types';
 import api from '@/utils/api';
@@ -24,6 +25,7 @@ export default function FarmerReceiptsScreen() {
   const colors = getColors(scheme);
   const router = useRouter();
   const { farmerProfile } = useAuth();
+  const { t } = useTranslation();
   
   const farmer = farmerProfile || { id: 1 };
 
@@ -76,7 +78,7 @@ export default function FarmerReceiptsScreen() {
         <View style={styles.headerTitleRow}>
           <IconButton icon="arrow-left" iconColor={colors.text} size={24} onPress={() => router.replace('/(farmer)' as any)} />
           <Text style={[styles.headerTitle, { color: colors.text }]}>
-            Warehouse Receipts
+            {t('farmer.myReceipts')}
           </Text>
         </View>
       </View>
@@ -94,7 +96,7 @@ export default function FarmerReceiptsScreen() {
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyEmoji}>📜</Text>
               <Text style={[styles.emptyText, { color: colors.text }]}>
-                No receipts issued yet
+                {t('farmer.noReceipts')}
               </Text>
               <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
                 Your warehouse receipts will be visible here once your deposits are graded and approved.
@@ -127,15 +129,15 @@ export default function FarmerReceiptsScreen() {
                   <View style={styles.middleRow}>
                     <View style={styles.infoCol}>
                       <Text style={[styles.commodity, { color: colors.text }]}>
-                        {comm ? comm.name : 'Commodity'}
+                        {comm ? comm.name : t('lot.commodity')}
                       </Text>
                       <Text style={[styles.qty, { color: colors.textSecondary }]}>
-                        Qty: <Text style={{ color: colors.text, fontWeight: '600' }}>{formatWeight(wr.quantity_kg)}</Text>
+                        {t('receipt.quantity')}: <Text style={{ color: colors.text, fontWeight: '600' }}>{formatWeight(wr.quantity_kg)}</Text>
                       </Text>
                     </View>
                     <View style={styles.valuationCol}>
                       <Text style={[styles.valLabel, { color: colors.textSecondary }]}>
-                        Valuation
+                        {t('receipt.valuation')}
                       </Text>
                       <Text style={[styles.valAmount, { color: colors.primary }]}>
                         {formatCurrency(wr.valuation)}
@@ -168,12 +170,12 @@ export default function FarmerReceiptsScreen() {
                             },
                           ]}
                         >
-                          🔗 PLEDGE: {wr.collateral_status.toUpperCase()}
+                          🔗 {t('farmerDetail.pledge')} {wr.collateral_status.toUpperCase()}
                         </Text>
                       </Surface>
                     </View>
                     <Text style={[styles.date, { color: colors.textSecondary }]}>
-                      Expires: {formatDate(wr.expiry_date)}
+                      {t('farmerDetail.expires')} {formatDate(wr.expiry_date)}
                     </Text>
                   </View>
                 </Card.Content>

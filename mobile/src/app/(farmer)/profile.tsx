@@ -10,7 +10,7 @@ import { Text, Card, Avatar, Button, Menu, Divider, List, ActivityIndicator } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { getColors, Spacing, BorderRadius, FontSize } from '@/constants/theme';
-import { t, AVAILABLE_LOCALES, setLocale, getLocale } from '@/i18n';
+import { AVAILABLE_LOCALES, useTranslation } from '@/i18n';
 import { maskAadhaar } from '@/utils/formatters';
 import { useAuth } from '@/store/authStore';
 import api from '@/utils/api';
@@ -25,7 +25,7 @@ export default function FarmerProfileScreen() {
   const initials = farmer.name ? farmer.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() : 'SP';
 
   const [menuVisible, setMenuVisible] = useState(false);
-  const [currentLang, setCurrentLang] = useState(getLocale());
+  const { locale, setLocale, t } = useTranslation();
   const [linkedFpo, setLinkedFpo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -46,16 +46,15 @@ export default function FarmerProfileScreen() {
 
   const handleLanguageChange = (langCode: 'en' | 'mr' | 'hi') => {
     setLocale(langCode);
-    setCurrentLang(langCode);
     setMenuVisible(false);
-    Alert.alert('Language Updated', 'Language changed successfully!');
+    Alert.alert(t('profile.languageUpdated'), t('profile.languageChangedSuccessfully'));
   };
 
   const handleLogout = async () => {
     await logout();
   };
 
-  const currentLangLabel = AVAILABLE_LOCALES.find(l => l.code === currentLang)?.label || 'English';
+  const currentLangLabel = AVAILABLE_LOCALES.find(l => l.code === locale)?.nativeLabel || 'English';
 
   if (loading) {
     return (
@@ -77,10 +76,10 @@ export default function FarmerProfileScreen() {
             labelStyle={{ color: colors.onPrimary, fontSize: 32, fontWeight: '700' }}
           />
           <Text style={[styles.profileName, { color: colors.text }]}>
-            {farmer.name || 'Unknown'}
+            {farmer.name || t('common.noData')}
           </Text>
           <Text style={[styles.profileCode, { color: colors.textSecondary }]}>
-            Farmer ID: {farmer.farmer_code || '—'}
+            {t('profile.farmerId')} {farmer.farmer_code || '—'}
           </Text>
         </View>
 
@@ -88,11 +87,11 @@ export default function FarmerProfileScreen() {
         <Card style={[styles.card, { backgroundColor: colors.card }]} elevation={1}>
           <Card.Content>
             <Text style={[styles.cardTitle, { color: colors.text }]}>
-              Personal Details
+              {t('profile.personalDetails')}
             </Text>
-            <InfoRow label="Mobile Phone" value={farmer.phone || 'N/A'} />
-            <InfoRow label="Village / Location" value={farmer.village || 'N/A'} />
-            <InfoRow label="Aadhaar Card" value={farmer.aadhaar ? maskAadhaar(farmer.aadhaar) : 'N/A'} />
+            <InfoRow label={t('profile.mobilePhone')} value={farmer.phone || 'N/A'} />
+            <InfoRow label={t('profile.villageLocation')} value={farmer.village || 'N/A'} />
+            <InfoRow label={t('profile.aadhaarCard')} value={farmer.aadhaar ? maskAadhaar(farmer.aadhaar) : 'N/A'} />
           </Card.Content>
         </Card>
 
@@ -100,10 +99,10 @@ export default function FarmerProfileScreen() {
         <Card style={[styles.card, { backgroundColor: colors.card }]} elevation={1}>
           <Card.Content>
             <Text style={[styles.cardTitle, { color: colors.text }]}>
-              Bank Details (for payouts)
+              {t('profile.bankDetailsTitle')}
             </Text>
-            <InfoRow label="Bank Account" value={farmer.bank_account ? 'XXXX-XXXX-' + farmer.bank_account.slice(-4) : 'N/A'} />
-            <InfoRow label="IFSC Code" value={farmer.bank_ifsc || 'N/A'} />
+            <InfoRow label={t('profile.bankAccount')} value={farmer.bank_account ? 'XXXX-XXXX-' + farmer.bank_account.slice(-4) : 'N/A'} />
+            <InfoRow label={t('profile.ifscCode')} value={farmer.bank_ifsc || 'N/A'} />
           </Card.Content>
         </Card>
 
@@ -112,11 +111,11 @@ export default function FarmerProfileScreen() {
           <Card style={[styles.card, { backgroundColor: colors.card }]} elevation={1}>
             <Card.Content>
               <Text style={[styles.cardTitle, { color: colors.text }]}>
-                Registered FPO
+                {t('profile.registeredFpo')}
               </Text>
-              <InfoRow label="FPO Name" value={linkedFpo.name} />
-              <InfoRow label="FPO Code" value={linkedFpo.code} />
-              <InfoRow label="Region / State" value={`${linkedFpo.district || ''}, ${linkedFpo.state || ''}`} />
+              <InfoRow label={t('profile.fpoName')} value={linkedFpo.name} />
+              <InfoRow label={t('profile.fpoCode')} value={linkedFpo.code} />
+              <InfoRow label={t('profile.regionState')} value={`${linkedFpo.district || ''}, ${linkedFpo.state || ''}`} />
             </Card.Content>
           </Card>
         )}
@@ -130,7 +129,7 @@ export default function FarmerProfileScreen() {
               onDismiss={() => setMenuVisible(false)}
               anchor={
                 <List.Item
-                  title="App Language"
+                  title={t('profile.appLanguage')}
                   description={currentLangLabel}
                   left={props => <List.Icon {...props} icon="translate" color={colors.primary} />}
                   right={props => <List.Icon {...props} icon="chevron-right" />}
@@ -145,7 +144,7 @@ export default function FarmerProfileScreen() {
                   key={loc.code}
                   onPress={() => handleLanguageChange(loc.code as 'en' | 'mr' | 'hi')}
                   title={loc.nativeLabel}
-                  titleStyle={{ color: currentLang === loc.code ? colors.primary : colors.text }}
+                  titleStyle={{ color: locale === loc.code ? colors.primary : colors.text }}
                 />
               ))}
             </Menu>
@@ -154,7 +153,7 @@ export default function FarmerProfileScreen() {
 
             {/* Change Password Row */}
             <List.Item
-              title="Change Password"
+              title={t('profile.changePassword')}
               titleStyle={{ color: colors.text, fontWeight: '600' }}
               left={props => <List.Icon {...props} icon="lock-reset" color={colors.primary} />}
               right={props => <List.Icon {...props} icon="chevron-right" />}
@@ -165,7 +164,7 @@ export default function FarmerProfileScreen() {
 
             {/* Logout Row */}
             <List.Item
-              title="Logout"
+              title={t('profile.logout')}
               titleStyle={{ color: colors.error, fontWeight: '600' }}
               left={props => <List.Icon {...props} icon="logout" color={colors.error} />}
               onPress={handleLogout}
