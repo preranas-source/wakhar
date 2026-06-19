@@ -441,7 +441,7 @@ export default function Transfers({ intakes = [], onAddActivity, role }) {
                   className="form-input" 
                   value={`${activeTransfer.quantity.toLocaleString()} kg`} 
                   disabled 
-                  readonly 
+                  readOnly 
                 />
               </div>
 
@@ -465,7 +465,7 @@ export default function Transfers({ intakes = [], onAddActivity, role }) {
                   className="form-input" 
                   value={`${currentVarianceVal} kg (${currentVariancePct}%)`} 
                   disabled 
-                  readonly 
+                  readOnly 
                   style={{
                     color: currentVarianceVal < 0 ? 'var(--red)' : (currentVarianceVal > 0 ? 'var(--green)' : 'var(--text)'),
                     background: currentVarianceVal !== 0 ? 'var(--amber-light)' : 'var(--surface2)',

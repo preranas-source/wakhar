@@ -153,24 +153,6 @@ export default function Layout({
     return t('Wakhar WMS');
   };
 
-  const usersList = [
-    { name: 'Rajesh Bhosale', role: 'FPO Manager', initials: 'RB', phone: '+919876500001' },
-    { name: 'Suresh Patil', role: 'Farmer', initials: 'SP', phone: '+919876543210' },
-    { name: 'Satara Aggregators', role: 'Aggregator Buyer', initials: 'SA', phone: '+919876500003' },
-    { name: 'Raigad Mart', role: 'Market Partner', initials: 'RM', phone: '+919876500004' }
-  ];
-
-  const handleUserChange = async (user) => {
-    try {
-      await login(user.phone, '123456');
-      setShowUserDropdown(false);
-      window.location.reload();
-    } catch (err) {
-      console.error('Switch perspective failed:', err);
-      alert('Failed to switch perspective. Please check backend connectivity.');
-    }
-  };
-
   const userInitials = currentUser?.initials || (currentUser?.full_name ? currentUser.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'RB');
   const userRoleLabel = currentUser?.role ? currentUser.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'FPO Manager';
 
@@ -221,37 +203,14 @@ export default function Layout({
                 boxShadow: '0 -4px 16px rgba(0,0,0,0.15)',
                 zIndex: 110,
                 marginBottom: '8px',
-                padding: '4px 0',
+                padding: '4px',
                 color: '#1C1A14'
               }}
             >
-              {/* Switch perspective demo shortcut helper */}
-              <div style={{ padding: '8px 12px', fontSize: '11px', color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>
-                Demo Switch Perspective:
-              </div>
-              {usersList.map((usr, i) => (
-                <div
-                  key={i}
-                  style={{
-                    padding: '8px 12px',
-                    cursor: 'pointer',
-                    fontSize: '12.5px',
-                    transition: 'background 0.1s'
-                  }}
-                  onMouseEnter={(e) => e.target.style.background = '#F5F2EC'}
-                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                  onClick={() => handleUserChange(usr)}
-                >
-                  {usr.name} ({usr.role})
-                </div>
-              ))}
-              
-              <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }}></div>
-
               {/* Logout Option */}
               <div 
                 style={{
-                  padding: '12px',
+                  padding: '10px 12px',
                   cursor: 'pointer',
                   fontSize: '13px',
                   display: 'flex',
@@ -262,8 +221,8 @@ export default function Layout({
                   transition: 'background 0.1s',
                   borderRadius: '6px'
                 }}
-                onMouseEnter={(e) => e.target.style.background = '#FDE8EB'}
-                onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#FDE8EB'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 onClick={() => {
                   setShowUserDropdown(false);
                   logout();

@@ -81,6 +81,7 @@ export default function App({ roleKey: propRoleKey }) {
   const [dbCommodities, setDbCommodities] = useState([]);
   const [dbWarehouses, setDbWarehouses] = useState([]);
   const [dbFarmers, setDbFarmers] = useState([]);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [dbUsers, setDbUsers] = useState([]);
   const [dbFpos, setDbFpos] = useState([]);
 
@@ -89,11 +90,11 @@ export default function App({ roleKey: propRoleKey }) {
   const [showAlertsModal, setShowAlertsModal] = useState(false);
 
   // Mappers
-  const mapLotToUI = useCallback((lot) => {
+  const mapLotToUI = useCallback((lot, farmers = [], commodities = [], warehouses = []) => {
     const gradeClasses = {
       grade_a: 'badge-green',
       grade_b: 'badge-amber',
-      grade_c: 'badge-orange',
+      grade_c: 'badge-red',
       rejected: 'badge-red',
       pending: 'badge-gray'
     };
@@ -113,20 +114,24 @@ export default function App({ roleKey: propRoleKey }) {
       returned: 'Returned'
     };
     
+    const farmer = farmers.find(f => f.id === lot.farmer_id);
+    const commodity = commodities.find(c => c.id === lot.commodity_id);
+    const warehouse = warehouses.find(w => w.id === lot.warehouse_id);
+
     return {
       id: lot.lot_code,
       dbId: lot.id,
-      farmerId: lot.farmer?.farmer_code || `FM-${lot.farmer_id}`,
+      farmerId: farmer?.farmer_code || `FM-${lot.farmer_id}`,
       dbFarmerId: lot.farmer_id,
-      farmerName: lot.farmer?.name || 'Unknown Farmer',
-      commodity: lot.commodity?.name || 'Unknown Crop',
+      farmerName: farmer?.name || 'Unknown Farmer',
+      commodity: commodity?.name || 'Unknown Crop',
       variety: lot.variety || '',
       quantity: parseFloat(lot.quantity_kg),
       bags: lot.bag_count,
       moisture: parseFloat(lot.moisture_pct || 0),
       grade: gradeLabels[lot.grade] || lot.grade,
       gradeClass: gradeClasses[lot.grade] || 'badge-gray',
-      warehouse: lot.warehouse?.name || 'Unknown Warehouse',
+      warehouse: warehouse?.name || 'Unknown Warehouse',
       zone: lot.zone || '',
       status: statusLabels[lot.status] || lot.status,
       date: lot.intake_date ? new Date(lot.intake_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Unknown Date',
@@ -134,7 +139,7 @@ export default function App({ roleKey: propRoleKey }) {
     };
   }, []);
 
-  const mapDispatchToUI = useCallback((dn) => {
+  const mapDispatchToUI = useCallback((dn, lots = [], commodities = []) => {
     const statusLabels = {
       created: 'Created',
       in_transit: 'In Transit',
@@ -144,21 +149,24 @@ export default function App({ roleKey: propRoleKey }) {
     const timeline = (dn.timeline_events || [])
       .sort((a, b) => (a.event_order || 0) - (b.event_order || 0))
       .map(event => ({
-        title: event.event_title,
-        sub: event.event_description || new Date(event.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        done: event.is_completed,
-        active: !event.is_completed
+        title: event.title,
+        sub: event.subtitle || new Date(event.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        done: event.is_done,
+        active: event.is_active
       }));
+
+    const lot = lots.find(l => l.id === dn.lot_id);
+    const commodity = lot ? commodities.find(c => c.id === lot.commodity_id) : null;
 
     return {
       id: dn.dn_code,
       dbId: dn.id,
-      lotId: dn.lot?.lot_code || '',
-      commodity: `${dn.lot?.commodity?.name || 'Unknown'} (${dn.lot?.variety || ''})`,
-      quantity: `${parseFloat(dn.dispatch_quantity_kg) / 1000} MT`,
+      lotId: lot?.lot_code || '',
+      commodity: `${commodity?.name || dn.commodity_desc || 'Unknown'} (${lot?.variety || ''})`,
+      quantity: dn.quantity_desc || `${parseFloat(dn.dispatch_quantity_kg) / 1000} MT`,
       quantityKg: parseFloat(dn.dispatch_quantity_kg),
       destination: dn.destination,
-      vehicle: dn.vehicle_no,
+      vehicle: dn.vehicle_reg,
       status: statusLabels[dn.status] || dn.status,
       timeline: timeline.length > 0 ? timeline : [
         { title: 'Dispatch Note Created', sub: 'Just now', done: true }
@@ -166,7 +174,7 @@ export default function App({ roleKey: propRoleKey }) {
     };
   }, []);
 
-  const mapReceiptToUI = useCallback((wr) => {
+  const mapReceiptToUI = useCallback((wr, lots = [], farmers = [], commodities = [], warehouses = []) => {
     const pledgeStatusLabels = {
       none: 'None',
       applied: 'Applied',
@@ -181,24 +189,29 @@ export default function App({ roleKey: propRoleKey }) {
       pending: 'QC Pending'
     };
 
+    const lot = lots.find(l => l.id === wr.lot_id);
+    const farmer = farmers.find(f => f.id === wr.farmer_id);
+    const commodity = lot ? commodities.find(c => c.id === lot.commodity_id) : null;
+    const warehouse = lot ? warehouses.find(w => w.id === lot.warehouse_id) : null;
+
     return {
-      id: wr.wr_code,
+      id: wr.wr_code || '',
       dbId: wr.id,
-      lotId: wr.lot?.lot_code || '',
-      farmerId: wr.farmer?.farmer_code || `FM-${wr.farmer_id}`,
-      farmerName: wr.farmer?.name || 'Unknown',
-      commodity: wr.lot?.commodity?.name || 'Unknown',
-      variety: wr.lot?.variety || '',
+      lotId: lot?.lot_code || '',
+      farmerId: farmer?.farmer_code || `FM-${wr.farmer_id}`,
+      farmerName: farmer?.name || 'Unknown',
+      commodity: commodity?.name || 'Unknown',
+      variety: lot?.variety || '',
       quantity: parseFloat(wr.quantity_kg),
-      bags: wr.lot?.bag_count || 0,
-      moisture: parseFloat(wr.lot?.moisture_pct || 0),
-      grade: gradeLabels[wr.lot?.grade] || wr.lot?.grade || 'QC Pending',
+      bags: lot?.bag_count || 0,
+      moisture: parseFloat(lot?.moisture_pct || 0),
+      grade: gradeLabels[lot?.grade] || lot?.grade || 'QC Pending',
       value: parseFloat(wr.valuation),
       collateralStatus: pledgeStatusLabels[wr.collateral_status] || 'None',
-      pledgeBank: wr.pledge_bank,
-      warehouse: wr.lot?.warehouse?.name || 'Unknown Warehouse',
-      zone: wr.lot?.zone || '',
+      pledgeBank: wr.pledge_bank || '',
       loanAmount: parseFloat(wr.loan_amount || 0),
+      warehouse: warehouse?.name || wr.lot?.warehouse?.name || 'Unknown Warehouse',
+      zone: lot?.zone || wr.lot?.zone || '',
       date: wr.issue_date ? new Date(wr.issue_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '',
       validity: wr.expiry_date ? new Date(wr.expiry_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
     };
@@ -226,9 +239,9 @@ export default function App({ roleKey: propRoleKey }) {
       setDbUsers(usersData);
       setDbFpos(fposData);
 
-      setIntakes(lotsData.map(mapLotToUI));
-      setDispatches(dispatchesData.map(mapDispatchToUI));
-      setReceipts(receiptsData.map(mapReceiptToUI));
+      setIntakes(lotsData.map(lot => mapLotToUI(lot, farmersData, commoditiesData, warehousesData)));
+      setDispatches(dispatchesData.map(dn => mapDispatchToUI(dn, lotsData, commoditiesData)));
+      setReceipts(receiptsData.map(wr => mapReceiptToUI(wr, lotsData, farmersData, commoditiesData, warehousesData)));
       
       const mappedActivities = (statsData.recent_activity || []).map(log => ({
         type: log.type,
@@ -241,6 +254,7 @@ export default function App({ roleKey: propRoleKey }) {
       setDataError('Could not sync with the Wakhar API. Make sure the backend server is running.');
     } finally {
       setDataLoading(false);
+      setIsInitialLoad(false);
     }
   }, [mapLotToUI, mapDispatchToUI, mapReceiptToUI, rawRole]);
 
@@ -719,7 +733,7 @@ export default function App({ roleKey: propRoleKey }) {
   };
 
   // Render Screens
-  if (authLoading || (currentUser && dataLoading)) {
+  if (authLoading || (currentUser && dataLoading && isInitialLoad)) {
     return (
       <div style={{
         display: 'flex',
