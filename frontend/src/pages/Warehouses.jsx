@@ -1,105 +1,176 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getTranslation } from '@wakhar/shared';
+import warehouseService from '../services/warehouseService';
+import toast from 'react-hot-toast';
 
-export default function Warehouses({ intakes, language = 'en' }) {
+export default function Warehouses({ 
+  intakes, 
+  language = 'en',
+  dbWarehouses = [],
+  dbFarmers = [],
+  dbFpos = [],
+  onRefreshData
+}) {
   const t = (key) => getTranslation(key, language);
-
-  // 1. Expanded Warehouses list state with full master data
-  const [warehouses, setWarehouses] = useState([
-    { 
-      id: 1, 
-      name: 'Wai FPO Warehouse', 
-      location: 'Wai, Satara - Maharashtra', 
-      capacity: 500, 
-      baselineStock: 342, 
-      baselineFarmers: 84, 
-      prefix: 'wai',
-      type: 'FPO-level',
-      zones: 'Zone A (Racks 1-5), Zone B (Racks 1-3), Bin A1-A20',
-      assignedTo: 'Wai FPO',
-      geoLat: '17.9462',
-      geoLng: '73.8821',
-      hours: '09:00 AM - 06:00 PM',
-      contact: '+91 98210 55660',
-      permittedCrops: ['Rice', 'Soybean', 'Groundnut']
-    },
-    { 
-      id: 2, 
-      name: 'Phaltan FPO Warehouse', 
-      location: 'Phaltan, Satara - Maharashtra', 
-      capacity: 800, 
-      baselineStock: 712, 
-      baselineFarmers: 131, 
-      prefix: 'phaltan',
-      type: 'FPO-level',
-      zones: 'Zone A (Racks 1-8), Zone B (Racks 1-4), Bins 1-40',
-      assignedTo: 'Phaltan FPO',
-      geoLat: '17.9810',
-      geoLng: '74.4120',
-      hours: '08:00 AM - 08:00 PM',
-      contact: '+91 99230 44556',
-      permittedCrops: ['Wheat', 'Soybean', 'Groundnut']
-    },
-    { 
-      id: 3, 
-      name: 'Baramati FPO Warehouse', 
-      location: 'Baramati, Pune - Maharashtra', 
-      capacity: 600, 
-      baselineStock: 288, 
-      baselineFarmers: 97, 
-      prefix: 'baramati',
-      type: 'Cold storage',
-      zones: 'Cold Zone A (Bins 1-10), Zone B (Racks 1-2)',
-      assignedTo: 'Baramati FPO',
-      geoLat: '18.1502',
-      geoLng: '74.5690',
-      hours: '24 Hours Open',
-      contact: '+91 91300 22334',
-      permittedCrops: ['Onion', 'Potato', 'Garlic']
-    }
-  ]);
 
   // Selected warehouse for details modal
   const [selectedWh, setSelectedWh] = useState(null);
 
-  // 2. Modal registration states
+  // Modal registration states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newWhName, setNewWhName] = useState('');
   const [newWhLocation, setNewWhLocation] = useState('');
   const [newWhCapacity, setNewWhCapacity] = useState('500');
   const [newWhStock, setNewWhStock] = useState('0');
-  const [newWhFarmers, setNewWhFarmers] = useState('0');
   const [newWhType, setNewWhType] = useState('FPO-level');
   const [newWhZones, setNewWhZones] = useState('Zone A (Racks 1-5), Zone B (Racks 1-3)');
-  const [newWhAssignedTo, setNewWhAssignedTo] = useState('Regional FPO');
-  const [newWhGeoLat, setNewWhGeoLat] = useState('17.9123');
-  const [newWhGeoLng, setNewWhGeoLng] = useState('73.8421');
+  const [newWhFpoId, setNewWhFpoId] = useState('');
+  const [newWhGeoLat, setNewWhGeoLat] = useState('17.950000');
+  const [newWhGeoLng, setNewWhGeoLng] = useState('73.880000');
   const [newWhHours, setNewWhHours] = useState('09:00 AM - 06:00 PM');
   const [newWhContact, setNewWhContact] = useState('+91 98765 43210');
   const [newWhPermittedCrops, setNewWhPermittedCrops] = useState(['Rice', 'Wheat', 'Soybean']);
 
-  // Compute stock adjustments dynamically from intakes delta (current session active vs baseline)
-  const getFpoDelta = (prefix) => {
-    if (!prefix) return 0;
+  // Set default FPO ID when dbFpos is available
+  useEffect(() => {
+    if (dbFpos.length > 0 && !newWhFpoId) {
+      setNewWhFpoId(dbFpos[0].id);
+    }
+  }, [dbFpos, newWhFpoId]);
 
-    // Seed database reference (from initialApp seed state)
-    const initialSeeds = [
-      { id: 'LOT-2026-091', commodity: 'Rice', quantity: 900, warehouse: 'Wai FPO' },
-      { id: 'LOT-2026-090', commodity: 'Wheat', quantity: 1200, warehouse: 'Phaltan FPO' },
-      { id: 'LOT-2026-089', commodity: 'Soybean', quantity: 600, warehouse: 'Wai FPO' },
-      { id: 'LOT-2026-088', commodity: 'Onion', quantity: 800, warehouse: 'Baramati FPO' }
-    ];
+  // Leaflet map initialization
+  useEffect(() => {
+    if (!isModalOpen) return;
 
-    const currentTotal = intakes
-      .filter(lot => lot.warehouse.toLowerCase().includes(prefix.toLowerCase()) && lot.status === 'Available')
-      .reduce((sum, lot) => sum + Number(lot.quantity || 0), 0);
+    let mapInstance = null;
 
-    const initialTotal = initialSeeds
-      .filter(lot => lot.warehouse.toLowerCase().includes(prefix.toLowerCase()))
-      .reduce((sum, lot) => sum + Number(lot.quantity || 0), 0);
+    const startMapInit = () => {
+      setTimeout(() => {
+        const mapDiv = document.getElementById('register-wh-map');
+        if (!mapDiv || !window.L) return;
 
-    return (currentTotal - initialTotal) / 1000; // Return delta in MT
-  };
+        const L = window.L;
+        const initialLat = 17.95;
+        const initialLng = 73.88;
+
+        // Fix default Leaflet icon paths
+        delete L.Icon.Default.prototype._getIconUrl;
+        L.Icon.Default.mergeOptions({
+          iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+          iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+          shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        });
+
+        const map = L.map('register-wh-map').setView([initialLat, initialLng], 10);
+        mapInstance = map;
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        const marker = L.marker([initialLat, initialLng], { draggable: true }).addTo(map);
+
+        const updateCoordsAndAddress = async (lat, lng) => {
+          setNewWhGeoLat(lat.toFixed(6));
+          setNewWhGeoLng(lng.toFixed(6));
+          try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`, {
+              headers: {
+                'User-Agent': 'WakharWMS/1.0'
+              }
+            });
+            if (response.ok) {
+              const data = await response.json();
+              if (data && data.display_name) {
+                setNewWhLocation(data.display_name);
+              }
+            }
+          } catch (err) {
+            console.error('Nominatim reverse lookup error:', err);
+          }
+        };
+
+        map.on('click', (e) => {
+          const { lat, lng } = e.latlng;
+          marker.setLatLng([lat, lng]);
+          updateCoordsAndAddress(lat, lng);
+        });
+
+        marker.on('dragend', () => {
+          const { lat, lng } = marker.getLatLng();
+          updateCoordsAndAddress(lat, lng);
+        });
+
+        setNewWhGeoLat(initialLat.toFixed(6));
+        setNewWhGeoLng(initialLng.toFixed(6));
+      }, 200);
+    };
+
+    // Load Leaflet css if not already present
+    let link = document.querySelector('link[href*="leaflet.css"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    // Load Leaflet js if not already present
+    let script = document.querySelector('script[src*="leaflet.js"]');
+    if (!script) {
+      script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = startMapInit;
+      document.body.appendChild(script);
+    } else {
+      if (window.L) {
+        startMapInit();
+      } else {
+        script.addEventListener('load', startMapInit);
+      }
+    }
+
+    return () => {
+      if (mapInstance) {
+        mapInstance.remove();
+      }
+    };
+  }, [isModalOpen]);
+
+  // Map database warehouses to UI format
+  const displayWarehouses = dbWarehouses.map(wh => {
+    let displayType = 'FPO-level';
+    if (wh.type === 'aggregator') displayType = 'Aggregator-level';
+    if (wh.type === 'cold_storage') displayType = 'Cold storage';
+
+    const fpo = dbFpos.find(f => f.id === wh.fpo_id);
+    const assignedTo = fpo ? fpo.name : 'Unknown FPO';
+
+    const farmersCount = dbFarmers.filter(f => f.fpo_id === wh.fpo_id).length;
+
+    let permittedCrops = ['Rice', 'Wheat', 'Soybean'];
+    if (wh.permitted_commodities) {
+      permittedCrops = wh.permitted_commodities.split(',').map(s => s.trim()).filter(Boolean);
+    }
+
+    return {
+      id: wh.id,
+      name: wh.name,
+      location: wh.address || 'Unknown Location',
+      capacity: parseFloat(wh.capacity_mt) || 0,
+      stock: parseFloat(wh.current_stock_mt) || 0,
+      farmers: farmersCount,
+      type: displayType,
+      zones: wh.zones || 'Zone A, Zone B',
+      assignedTo: assignedTo,
+      fpo_id: wh.fpo_id,
+      geoLat: wh.geo_lat?.toString() || '0.0',
+      geoLng: wh.geo_lng?.toString() || '0.0',
+      hours: wh.operating_hours || '09:00 AM - 06:00 PM',
+      contact: wh.contact_phone || 'N/A',
+      permittedCrops: permittedCrops
+    };
+  });
 
   const handleCropCheckboxChange = (crop) => {
     if (newWhPermittedCrops.includes(crop)) {
@@ -109,50 +180,64 @@ export default function Warehouses({ intakes, language = 'en' }) {
     }
   };
 
-  const handleRegisterSubmit = (e) => {
+  const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     if (!newWhName.trim() || !newWhLocation.trim()) {
-      alert('Please fill out all required fields.');
+      toast.error('Please fill out all required fields.');
       return;
     }
 
-    const newWh = {
-      id: Date.now(),
-      name: newWhName,
-      location: newWhLocation,
-      capacity: Number(newWhCapacity) || 500,
-      baselineStock: Number(newWhStock) || 0,
-      baselineFarmers: Number(newWhFarmers) || 0,
-      prefix: newWhName.toLowerCase().replace(/[^a-z]/g, ''),
-      type: newWhType,
-      zones: newWhZones,
-      assignedTo: newWhAssignedTo,
-      geoLat: newWhGeoLat,
-      geoLng: newWhGeoLng,
-      hours: newWhHours,
-      contact: newWhContact,
-      permittedCrops: newWhPermittedCrops
+    const typeMapping = {
+      'FPO-level': 'fpo',
+      'Aggregator-level': 'aggregator',
+      'Cold storage': 'cold_storage'
     };
 
-    setWarehouses(prev => [...prev, newWh]);
-    setIsModalOpen(false);
+    try {
+      const payload = {
+        name: newWhName,
+        code: `WH-${newWhName.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5)}-${Math.floor(Math.random() * 900 + 100)}`,
+        type: typeMapping[newWhType] || 'fpo',
+        fpo_id: Number(newWhFpoId) || dbFpos[0]?.id || 1,
+        geo_lat: parseFloat(newWhGeoLat),
+        geo_lng: parseFloat(newWhGeoLng),
+        capacity_mt: parseFloat(newWhCapacity) || 0,
+        current_stock_mt: parseFloat(newWhStock) || 0,
+        address: newWhLocation,
+        contact_person: 'FPO Representative',
+        contact_phone: newWhContact,
+        operating_hours: newWhHours,
+        permitted_commodities: newWhPermittedCrops.join(','),
+        is_active: true
+      };
 
-    alert(`Warehouse "${newWhName}" registered successfully in the regional WMS infrastructure!`);
+      await warehouseService.createWarehouse(payload);
+      
+      toast.success(`Warehouse "${newWhName}" registered successfully in the database!`);
+      
+      if (onRefreshData) {
+        await onRefreshData();
+      }
 
-    // Reset fields
-    setNewWhName('');
-    setNewWhLocation('');
-    setNewWhCapacity('500');
-    setNewWhStock('0');
-    setNewWhFarmers('0');
-    setNewWhType('FPO-level');
-    setNewWhZones('Zone A (Racks 1-5), Zone B (Racks 1-3)');
-    setNewWhAssignedTo('Regional FPO');
-    setNewWhGeoLat('17.9123');
-    setNewWhGeoLng('73.8421');
-    setNewWhHours('09:00 AM - 06:00 PM');
-    setNewWhContact('+91 98765 43210');
-    setNewWhPermittedCrops(['Rice', 'Wheat', 'Soybean']);
+      setIsModalOpen(false);
+
+      // Reset fields
+      setNewWhName('');
+      setNewWhLocation('');
+      setNewWhCapacity('500');
+      setNewWhStock('0');
+      setNewWhType('FPO-level');
+      setNewWhZones('Zone A (Racks 1-5), Zone B (Racks 1-3)');
+      setNewWhFpoId(dbFpos[0]?.id || '');
+      setNewWhGeoLat('17.950000');
+      setNewWhGeoLng('73.880000');
+      setNewWhHours('09:00 AM - 06:00 PM');
+      setNewWhContact('+91 98765 43210');
+      setNewWhPermittedCrops(['Rice', 'Wheat', 'Soybean']);
+    } catch (err) {
+      console.error('Failed to create warehouse:', err);
+      toast.success('Failed to register warehouse on the backend.');
+    }
   };
 
   return (
@@ -172,11 +257,10 @@ export default function Warehouses({ intakes, language = 'en' }) {
 
       {/* CARDS GRID */}
       <div className="warehouse-grid">
-        {warehouses.map(wh => {
-          const delta = getFpoDelta(wh.prefix);
-          const stock = Number((wh.baselineStock + delta).toFixed(1));
+        {displayWarehouses.map(wh => {
+          const stock = wh.stock;
           const capacity = wh.capacity;
-          const farmers = wh.baselineFarmers;
+          const farmers = wh.farmers;
 
           const usedPercent = Math.min(100, Math.round((stock / capacity) * 100));
           const freeCapacity = Math.max(0, Number((capacity - stock).toFixed(1)));
@@ -278,13 +362,16 @@ export default function Warehouses({ intakes, language = 'en' }) {
                   </div>
                   <div className="form-group">
                     <label className="form-label">Assigned FPO/Region *</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={newWhAssignedTo}
-                      onChange={(e) => setNewWhAssignedTo(e.target.value)}
+                    <select
+                      className="form-select"
+                      value={newWhFpoId}
+                      onChange={(e) => setNewWhFpoId(e.target.value)}
                       required
-                    />
+                    >
+                      {dbFpos.map(fpo => (
+                        <option key={fpo.id} value={fpo.id}>{fpo.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -293,44 +380,44 @@ export default function Warehouses({ intakes, language = 'en' }) {
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="e.g. Satara MIDC, Maharashtra"
+                    placeholder="Click on map below to auto-fetch address"
                     value={newWhLocation}
                     onChange={(e) => setNewWhLocation(e.target.value)}
                     required
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="form-group">
-                    <label className="form-label">Total Capacity (MT)</label>
+                    <label className="form-label">Total Capacity (MT) *</label>
                     <input
                       type="number"
                       className="form-input"
                       value={newWhCapacity}
                       onChange={(e) => setNewWhCapacity(e.target.value)}
                       min="10"
+                      required
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Base Stock (MT)</label>
+                    <label className="form-label">Base Stock (MT) *</label>
                     <input
                       type="number"
                       className="form-input"
                       value={newWhStock}
                       onChange={(e) => setNewWhStock(e.target.value)}
                       min="0"
+                      required
                     />
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Farmers Registered</label>
-                    <input
-                      type="number"
-                      className="form-input"
-                      value={newWhFarmers}
-                      onChange={(e) => setNewWhFarmers(e.target.value)}
-                      min="0"
-                    />
-                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Select Location on Map</label>
+                  <div id="register-wh-map" style={{ height: '200px', width: '100%', borderRadius: '8px', border: '1px solid var(--border)' }}></div>
+                  <small style={{ color: 'var(--text3)', display: 'block', marginTop: '4px' }}>
+                    Click or drag the marker to pinpoint the warehouse location. This will automatically populate coordinates and reverse-geocode the address.
+                  </small>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -453,12 +540,12 @@ export default function Warehouses({ intakes, language = 'en' }) {
                 <div>
                   <span style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase' }}>In Stock (MT)</span>
                   <div style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--blue)' }}>
-                    {(selectedWh.baselineStock + getFpoDelta(selectedWh.prefix)).toFixed(1)} MT
+                    {selectedWh.stock.toFixed(1)} MT
                   </div>
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase' }}>Registered Farmers</span>
-                  <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{selectedWh.baselineFarmers}</div>
+                  <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{selectedWh.farmers}</div>
                 </div>
               </div>
 
@@ -511,7 +598,7 @@ export default function Warehouses({ intakes, language = 'en' }) {
                 type="button" 
                 className="btn btn-outline" 
                 style={{ background: '#fff' }}
-                onClick={() => alert(`Synchronizing geofence bounds with Traccar API for ${selectedWh.name}...`)}
+                onClick={() => toast.success(`Synchronizing geofence bounds with Traccar API for ${selectedWh.name}...`)}
               >
                 🛰️ Sync Traccar Geofence
               </button>

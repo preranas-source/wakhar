@@ -26,6 +26,8 @@ class DispatchNoteBase(BaseModel):
     commodity_desc: str
     quantity_desc: str
     destination: str
+    destination_lat: Optional[float] = None
+    destination_lng: Optional[float] = None
     buyer_id: Optional[int] = None
     vehicle_reg: str
     traccar_device_id: Optional[str] = None

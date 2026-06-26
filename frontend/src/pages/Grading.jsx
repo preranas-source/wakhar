@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 
 export default function Grading({ 
   intakes = [], 
@@ -87,7 +88,7 @@ export default function Grading({
   const handleCreateQCRecord = (e) => {
     e.preventDefault();
     if (!newLotId) {
-      alert('Please select a pending lot to test.');
+      toast.error('Please select a pending lot to test.');
       return;
     }
 
@@ -138,7 +139,7 @@ export default function Grading({
 
     setIsModalOpen(false);
 
-    alert(`Quality certified for Lot ${newLotId}! AGMARK Evaluation: "${computedGrade}".`);
+    toast.success(`Quality certified for Lot ${newLotId}! AGMARK Evaluation: "${computedGrade}".`);
     
     if (onAddActivity) {
       onAddActivity(
@@ -150,7 +151,7 @@ export default function Grading({
 
   const handleConfirmRejection = () => {
     if (!rejectedLot) return;
-    alert(`Rejection note issued for Lot ${rejectedLot.id}! Scheduled for return to farmer on ${returnDate}.`);
+    toast.success(`Rejection note issued for Lot ${rejectedLot.id}! Scheduled for return to farmer on ${returnDate}.`);
     if (onAddActivity) {
       onAddActivity(
         'qc',
@@ -161,7 +162,7 @@ export default function Grading({
 
   const handleSendToEnam = () => {
     if (!certifiedLot) return;
-    alert(`Quality Certificate for Lot ${certifiedLot.id} successfully synchronized with eNAM national marketing portal!`);
+    toast.success(`Quality Certificate for Lot ${certifiedLot.id} successfully synchronized with eNAM national marketing portal!`);
     if (onAddActivity) {
       onAddActivity(
         'market',
@@ -272,7 +273,7 @@ export default function Grading({
                 type="button" 
                 className="btn btn-outline" 
                 style={{ background: '#fff' }}
-                onClick={() => alert(`Draft inspection notes saved for Lot ${rejectedLot.id}.`)}
+                onClick={() => toast.success(`Draft inspection notes saved for Lot ${rejectedLot.id}.`)}
               >
                 Save & Notify Farmer
               </button>
@@ -350,7 +351,7 @@ export default function Grading({
                 type="button" 
                 className="btn btn-outline" 
                 style={{ background: '#fff' }}
-                onClick={() => alert(`Simulating PDF generation for Quality Certificate ${certifiedLot.id}... Document download started.`)}
+                onClick={() => toast.success(`Simulating PDF generation for Quality Certificate ${certifiedLot.id}... Document download started.`)}
               >
                 📄 Download Quality Certificate PDF
               </button>
@@ -358,7 +359,7 @@ export default function Grading({
                 type="button" 
                 className="btn btn-primary" 
                 style={{ background: 'var(--green)', color: '#fff', borderColor: 'var(--green)' }}
-                onClick={() => alert(`Quality certificate for Lot ${certifiedLot.id} sent to depositor farmer via WhatsApp/SMS successfully.`)}
+                onClick={() => toast.success(`Quality certificate for Lot ${certifiedLot.id} sent to depositor farmer via WhatsApp/SMS successfully.`)}
               >
                 Send to Farmer (WhatsApp)
               </button>
@@ -435,7 +436,7 @@ export default function Grading({
                           style={{ padding: '4px 8px', fontSize: '11px', background: '#fff', borderRadius: '6px' }}
                           onClick={(e) => {
                             e.stopPropagation();
-                            alert(`Downloading quality certificate PDF for Lot ${lot.id}...`);
+                            toast.success(`Downloading quality certificate PDF for Lot ${lot.id}...`);
                           }}
                         >
                           📄 Certificate

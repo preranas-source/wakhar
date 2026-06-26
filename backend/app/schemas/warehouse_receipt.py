@@ -18,8 +18,7 @@ class WarehouseReceiptBase(BaseModel):
     enam_submitted: bool = False
 
 class WarehouseReceiptCreate(WarehouseReceiptBase):
-    client_timestamp: Optional[datetime] = None
-    version: Optional[int] = None
+    pass
 
 from .commodity_lot import CommodityLotResponse
 from .farmer import FarmerResponse
@@ -28,7 +27,6 @@ class WarehouseReceiptResponse(WarehouseReceiptBase):
     id: int
     created_at: datetime
     updated_at: datetime
-    version: int
     lot: Optional[CommodityLotResponse] = None
     farmer: Optional[FarmerResponse] = None
     model_config = ConfigDict(from_attributes=True)

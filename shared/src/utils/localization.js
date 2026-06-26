@@ -25,6 +25,7 @@ const translations = {
     'Warehouses': 'Warehouses',
     'Reports': 'Reports',
     'Integrations': 'Integrations',
+    'Role Management': 'Role Management',
 
     // Common Labels
     'Lot ID': 'Lot ID',
@@ -241,6 +242,7 @@ const translations = {
     'Warehouses': 'गोदाम व्यवस्थापन',
     'Reports': 'अहवाल व विश्लेषण',
     'Integrations': 'कनेक्टर्स / IoT',
+    'Role Management': 'भूमिका व्यवस्थापन',
 
     // Common Labels
     'Lot ID': 'लॉट आयडी',
@@ -457,6 +459,7 @@ const translations = {
     'Warehouses': 'गोदाम प्रबंधन',
     'Reports': 'रिपोर्ट एवं विश्लेषण',
     'Integrations': 'एकीकरण (IoT)',
+    'Role Management': 'भूमिका प्रबंधन',
 
     // Common Labels
     'Lot ID': 'लॉट आईडी',

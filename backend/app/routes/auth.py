@@ -6,12 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 from passlib.context import CryptContext
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from typing import List
 from app.database import get_db
 from app.models import FPO, Farmer
 from app.models.user import User
+from app.models.role import Role
 from app.schemas.auth import LoginRequest, TokenResponse, UserResponse, RegisterRequest, FPOResponse, ChangePasswordRequest
 
 # Load environment variables
@@ -71,11 +72,16 @@ def get_current_user(
     clean_phone = phone.replace(" ", "").replace("-", "")
     prefix_phone = "+91" + clean_phone if (len(clean_phone) == 10 and not clean_phone.startswith("+")) else clean_phone
     
-    user = db.query(User).filter(
-        (User.phone == phone) | 
-        (User.phone == clean_phone) |
-        (User.phone == prefix_phone)
-    ).first()
+    user = (
+        db.query(User)
+        .options(joinedload(User.role_rel))
+        .filter(
+            (User.phone == phone) | 
+            (User.phone == clean_phone) |
+            (User.phone == prefix_phone)
+        )
+        .first()
+    )
     
     if user is None:
         raise HTTPException(
@@ -95,11 +101,16 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     clean_phone = request.phone.replace(" ", "").replace("-", "")
     prefix_phone = "+91" + clean_phone if (len(clean_phone) == 10 and not clean_phone.startswith("+")) else clean_phone
     
-    user = db.query(User).filter(
-        (User.phone == request.phone) | 
-        (User.phone == clean_phone) |
-        (User.phone == prefix_phone)
-    ).first()
+    user = (
+        db.query(User)
+        .options(joinedload(User.role_rel))
+        .filter(
+            (User.phone == request.phone) | 
+            (User.phone == clean_phone) |
+            (User.phone == prefix_phone)
+        )
+        .first()
+    )
     
     if not user:
         raise HTTPException(
@@ -120,8 +131,9 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
         )
         
     # Create Access Token
+    role_name = user.role.name if user.role else "unknown"
     access_token = create_access_token(
-        data={"sub": user.phone, "role": user.role.value}
+        data={"sub": user.phone, "role": role_name}
     )
     
     return {
@@ -178,6 +190,14 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
                 detail="Email already registered"
             )
 
+    # Look up the Role by name
+    role_obj = db.query(Role).filter(Role.name == request.role).first()
+    if not role_obj:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Role '{request.role}' not found. Available roles can be fetched from /api/rbac/roles"
+        )
+
     # Calculate initials
     name_parts = request.full_name.strip().split(' ')
     if len(name_parts) > 1:
@@ -193,7 +213,7 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
         email=request.email if request.email else None,
         full_name=request.full_name,
         password_hash=get_password_hash(request.password),
-        role=request.role,
+        role_id=role_obj.id,
         initials=initials,
         is_active=True,
         fpo_id=request.fpo_id
@@ -202,7 +222,7 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
     db.flush()
     
     # If role is farmer, automatically create Farmer profile
-    if request.role.value == "farmer":
+    if request.role == "farmer":
         if not request.fpo_id:
             first_fpo = db.query(FPO).first()
             if not first_fpo:

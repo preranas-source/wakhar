@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 
 export default function StockCount() {
   // 1. Active Cycle count lot list matching the screenshot
@@ -71,7 +72,7 @@ export default function StockCount() {
     };
 
     setHistory(prev => [newHistory, ...prev]);
-    alert(`Cycle count submitted! Variance Report generated for Wai FPO (Net variance: ${totalVariance} kg).`);
+    toast.success(`Cycle count submitted! Variance Report generated for Wai FPO (Net variance: ${totalVariance} kg).`);
   };
 
   const formatLotId = (id) => {
@@ -102,14 +103,14 @@ export default function StockCount() {
           <button 
             className="btn btn-outline" 
             style={{ background: '#fff' }}
-            onClick={() => alert('Variance report PDF download started.')}
+            onClick={() => toast.success('Variance report PDF download started.')}
           >
             Export Variance Report
           </button>
           <button 
             className="btn btn-primary" 
             style={{ background: '#1E4D36', borderColor: '#1E4D36' }}
-            onClick={() => alert('New physical count verification cycle started for Phaltan FPO.')}
+            onClick={() => toast.success('New physical count verification cycle started for Phaltan FPO.')}
           >
             + Start New Count
           </button>
@@ -213,7 +214,7 @@ export default function StockCount() {
               type="button" 
               className="btn btn-outline" 
               style={{ background: '#fff' }}
-              onClick={() => alert('Audit progress saved to local ledger draft.')}
+              onClick={() => toast.success('Audit progress saved to local ledger draft.')}
             >
               Save Progress
             </button>

@@ -1,8 +1,170 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getTranslation } from '@wakhar/shared';
+import toast from 'react-hot-toast';
+
+function SearchableSelect({ value, onChange, options, placeholder = "Select...", width = "120px" }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+
+  const selectedOption = options.find(opt => opt.value === value) || options[0];
+
+  const filteredOptions = options.filter(opt =>
+    opt.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClose = () => setIsOpen(false);
+    document.addEventListener('click', handleClose);
+    return () => document.removeEventListener('click', handleClose);
+  }, [isOpen]);
+
+  return (
+    <div 
+      className="custom-select-container" 
+      style={{ position: 'relative', width }}
+      onClick={e => e.stopPropagation()}
+    >
+      <div 
+        className="custom-select-trigger"
+        onClick={() => {
+          setIsOpen(!isOpen);
+          setSearch('');
+        }}
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '5px 8px',
+          fontSize: '12px',
+          background: '#fff',
+          border: '1px solid rgba(0, 0, 0, 0.15)',
+          borderRadius: '6px',
+          cursor: 'pointer',
+          userSelect: 'none',
+          color: '#1C1A14',
+          minHeight: '28px',
+          boxSizing: 'border-box'
+        }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <svg 
+          width="10" 
+          height="6" 
+          viewBox="0 0 10 6" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          style={{ 
+            transition: 'transform 0.2s', 
+            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+            marginLeft: '6px',
+            color: '#8A8070',
+            flexShrink: 0
+          }}
+        >
+          <path d="M1 1l4 4 4-4" />
+        </svg>
+      </div>
+
+      {isOpen && (
+        <div 
+          className="custom-select-dropdown"
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            marginTop: '4px',
+            background: '#fff',
+            border: '1px solid rgba(0, 0, 0, 0.15)',
+            borderRadius: '6px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+            zIndex: 1000,
+            maxHeight: '240px',
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+        >
+          <div style={{ padding: '6px', borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
+            <input 
+              type="text" 
+              placeholder="Search..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '4px 8px',
+                fontSize: '12px',
+                border: '1px solid rgba(0, 0, 0, 0.12)',
+                borderRadius: '4px',
+                outline: 'none',
+                boxSizing: 'border-box'
+              }}
+              autoFocus
+            />
+          </div>
+          <div style={{ overflowY: 'auto', flex: 1, maxHeight: '180px' }}>
+            {filteredOptions.length === 0 ? (
+              <div style={{ padding: '8px 12px', fontSize: '12px', color: '#8A8070', textAlign: 'center' }}>
+                No results
+              </div>
+            ) : (
+              filteredOptions.map(opt => (
+                <div 
+                  key={opt.value}
+                  onClick={() => {
+                    onChange({ target: { value: opt.value } });
+                    setIsOpen(false);
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    background: value === opt.value ? 'var(--green-light)' : 'transparent',
+                    color: value === opt.value ? 'var(--green)' : '#1C1A14',
+                    fontWeight: value === opt.value ? '600' : 'normal',
+                    transition: 'background 0.15s'
+                  }}
+                  onMouseEnter={e => e.target.style.background = value === opt.value ? 'var(--green-light)' : 'rgba(0,0,0,0.04)'}
+                  onMouseLeave={e => e.target.style.background = value === opt.value ? 'var(--green-light)' : 'transparent'}
+                >
+                  {opt.label}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Inventory({ intakes, receipts = [], dispatches = [], onDispatchLot, searchQuery, language = 'en' }) {
   const t = (key) => getTranslation(key, language);
+
+  const zoneOptions = [
+    { value: 'All', label: 'All Zones' },
+    { value: 'Zone A', label: 'Zone A' },
+    { value: 'Zone B', label: 'Zone B' },
+    { value: 'Zone C', label: 'Zone C' }
+  ];
+
+  const categoryOptions = [
+    { value: 'All', label: 'All Categories' },
+    { value: 'Grains', label: 'Grains (Wheat/Rice)' },
+    { value: 'Oilseeds', label: 'Oilseeds (Soy/Ground)' },
+    { value: 'Vegetables', label: 'Vegetables (Onion)' }
+  ];
+
+  const ruleOptions = [
+    { value: 'FIFO', label: 'FIFO (Oldest Deposit)' },
+    { value: 'FEFO', label: 'FEFO (Highest Risk)' }
+  ];
 
   const [activeTab, setActiveTab] = useState('All lots');
   const [selectedLot, setSelectedLot] = useState(null);
@@ -145,47 +307,34 @@ export default function Inventory({ intakes, receipts = [], dispatches = [], onD
           {/* Warehouse Zones Filter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text2)' }}>Zone:</span>
-            <select 
+            <SearchableSelect 
               value={selectedZone} 
               onChange={(e) => setSelectedZone(e.target.value)}
-              className="form-select"
-              style={{ padding: '4px 8px', fontSize: '12px', background: '#fff', width: '110px' }}
-            >
-              <option value="All">All Zones</option>
-              <option value="Zone A">Zone A</option>
-              <option value="Zone B">Zone B</option>
-              <option value="Zone C">Zone C</option>
-            </select>
+              options={zoneOptions}
+              width="110px"
+            />
           </div>
 
           {/* Commodity Categories Filter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text2)' }}>Category:</span>
-            <select 
+            <SearchableSelect 
               value={selectedCategory} 
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="form-select"
-              style={{ padding: '4px 8px', fontSize: '12px', background: '#fff', width: '120px' }}
-            >
-              <option value="All">All Categories</option>
-              <option value="Grains">Grains (Wheat/Rice)</option>
-              <option value="Oilseeds">Oilseeds (Soy/Ground)</option>
-              <option value="Vegetables">Vegetables (Onion)</option>
-            </select>
+              options={categoryOptions}
+              width="130px"
+            />
           </div>
 
           {/* Active Dispatch Rule Selector */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text2)' }}>Rule:</span>
-            <select 
+            <SearchableSelect 
               value={dispatchRule} 
               onChange={(e) => setDispatchRule(e.target.value)}
-              className="form-select"
-              style={{ padding: '4px 8px', fontSize: '12px', background: '#fff', width: '140px' }}
-            >
-              <option value="FIFO">FIFO (Oldest Deposit)</option>
-              <option value="FEFO">FEFO (Highest Risk)</option>
-            </select>
+              options={ruleOptions}
+              width="160px"
+            />
           </div>
           
           <button 
@@ -429,7 +578,7 @@ export default function Inventory({ intakes, receipts = [], dispatches = [], onD
                   {selectedLot.moisture > 14 && selectedLot.status !== 'Returned' && (
                     <button 
                       className="btn btn-outline" 
-                      onClick={() => alert(`Aeration scheduled for lot ${selectedLot.id}`)}
+                      onClick={() => toast.success(`Aeration scheduled for lot ${selectedLot.id}`)}
                       style={{ width: '100%', justifyContent: 'center', background: '#fff' }}
                     >
                       💨 Request Aeration

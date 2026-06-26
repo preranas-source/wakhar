@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, BackgroundTasks
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime, timezone
@@ -12,6 +12,7 @@ from app.schemas.dispatch_note import (
     DispatchTimelineEventCreate, DispatchTimelineEventResponse
 )
 from app.utils.idempotency import get_idempotency_key, check_idempotency, store_idempotency
+from app.services.agri_fleet_service import create_dispatch_order
 
 router = APIRouter(prefix="/api/dispatch-notes", tags=["Dispatch Notes"], dependencies=[Depends(get_current_user)])
 
@@ -29,7 +30,7 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
 import uuid
 
 @router.post("/", response_model=DispatchNoteResponse, status_code=status.HTTP_201_CREATED)
-def create_item(request: Request, data: DispatchNoteCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff', 'aggregator']))):
+def create_item(request: Request, data: DispatchNoteCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff', 'aggregator']))):
     key = get_idempotency_key(request)
     existing = check_idempotency(key, db)
     if existing:
@@ -105,6 +106,9 @@ def create_item(request: Request, data: DispatchNoteCreate, db: Session = Depend
     db.commit()
 
     store_idempotency(key, 201, DispatchNoteResponse.model_validate(dispatch_note).model_dump(mode='json'), db)
+
+    # Workflow A: Trigger WMS to Frappe sync asynchronously
+    background_tasks.add_task(create_dispatch_order, dispatch_note.id)
 
     return dispatch_note
 

@@ -1,52 +1,88 @@
 import { useState } from 'react';
 import { apiSim } from '@wakhar/shared';
+import toast from 'react-hot-toast';
 
 export default function Market({ 
-  intakes = [], 
-  onReserveLot, 
+  intakes = [],
+  pos = [],
+  dbCommodities = [],
+  dbWarehouses = [],
+  currentUser,
+  onReserveLot,
+  onCreatePO,
+  onPayPO,
   searchQuery, 
   activeTab = 'market',
   role 
 }) {
   const [poFilter, setPoFilter] = useState('All');
-  
-  // 1. Purchase Orders Database
-  const [pos, setPos] = useState([
-    { id: 'PO-2026-112', buyerName: 'Raigad Mart', buyerCity: 'Mumbai', commodity: 'Wheat - Grade A', qty: 50, price: 22000, total: '₹11.0L', warehouse: 'Phaltan FPO', status: 'Accepted', payment: 'Pending' },
-    { id: 'PO-2026-111', buyerName: 'Raigad Mart', buyerCity: 'Mumbai', commodity: 'Rice - Grade A', qty: 30, price: 28000, total: '₹8.4L', warehouse: 'Wai FPO', status: 'In Transit', payment: 'Pending' },
-    { id: 'PO-2026-108', buyerName: 'Savali Traders', buyerCity: 'Pune', commodity: 'Soybean - Grade A', qty: 20, price: 38500, total: '₹7.7L', warehouse: 'Wai FPO', status: 'Delivered', payment: 'Paid' },
-    { id: 'PO-2026-104', buyerName: 'Kokan Exports', buyerCity: 'Ratnagiri', commodity: 'Groundnut - Grade A', qty: 15, price: 52000, total: '₹7.8L', warehouse: 'Wai FPO', status: 'Delivered', payment: 'Partial' }
-  ]);
-
-  // Create PO Form state
   const [newPoCommodity, setNewPoCommodity] = useState('Rice');
   const [newPoQty, setNewPoQty] = useState('20');
   const [newPoWarehouse, setNewPoWarehouse] = useState('Wai FPO');
   const [newPoPrice, setNewPoPrice] = useState('28000');
 
-  // Payments tracking database state
-  const [paymentsList, setPaymentsList] = useState([
-    { poId: 'PO-2026-111', invId: 'INV-2026-0088', buyer: 'Raigad Mart', amount: '₹8.4L', amountVal: 840000, due: '15 Jun', paymentStatus: 'Awaiting', paymentClass: 'badge-gray', releaseStatus: 'Held', releaseClass: 'badge-gray' },
-    { poId: 'PO-2026-104', invId: 'INV-2026-0081', buyer: 'Kokan Exports', amount: '₹3.9L', amountVal: 390000, due: '10 Jun', paymentStatus: 'Partial ₹2L', paymentClass: 'badge-amber', releaseStatus: 'Partial', releaseClass: 'badge-amber' },
-    { poId: 'PO-2026-108', invId: 'INV-2026-0075', buyer: 'Savali Traders', amount: '₹7.7L', amountVal: 770000, due: '1 Jun', paymentStatus: 'Paid (Razorpay)', paymentClass: 'badge-green', releaseStatus: 'Released', releaseClass: 'badge-green' }
-  ]);
+  // Format real pos into UI format
+  const formattedPOs = pos.map(po => {
+    const qtyMT = parseFloat(po.quantity_kg) / 1000.0;
+    const priceMT = parseFloat(po.price_per_mt);
+    const valuationVal = qtyMT * priceMT;
+    const valuationLakhs = (valuationVal / 100000).toFixed(1);
+    
+    const commName = dbCommodities?.find(c => c.id === po.commodity_id)?.name || 'Commodity';
+    const whName = dbWarehouses?.find(w => w.id === po.warehouse_id)?.name || 'Warehouse';
+    
+    let uiStatus = 'Pending';
+    if (po.status === 'accepted') uiStatus = 'Accepted';
+    if (po.status === 'in_transit') uiStatus = 'In Transit';
+    if (po.status === 'delivered' || po.status === 'fulfilled') uiStatus = 'Delivered';
+    if (po.status === 'cancelled') uiStatus = 'Cancelled';
+
+    let uiPayment = 'Pending';
+    if (po.payment_status === 'confirmed') uiPayment = 'Paid';
+    if (po.payment_status === 'failed') uiPayment = 'Failed';
+
+    return {
+      dbId: po.id,
+      id: po.po_code,
+      buyerName: po.buyer_id === currentUser?.id ? (currentUser.full_name || 'Buyer') : 'Raigad Mart',
+      commodity: `${commName} - ${po.grade}`,
+      qty: qtyMT,
+      price: priceMT,
+      total: `₹${valuationLakhs}L`,
+      totalVal: valuationVal,
+      warehouse: whName,
+      status: uiStatus,
+      payment: uiPayment
+    };
+  }).reverse(); // Latest first
+
+  // Derive payments list from formatted POs
+  const paymentsList = formattedPOs
+    .filter(po => po.payment === 'Pending' || po.payment === 'Paid')
+    .map(po => {
+      const isPaid = po.payment === 'Paid';
+      return {
+        poDbId: po.dbId,
+        poId: po.id,
+        invId: `INV-2026-${po.id.split('-').pop() || '000'}`,
+        buyer: po.buyerName,
+        amount: po.total,
+        amountVal: po.totalVal,
+        due: 'Due Upon Delivery',
+        paymentStatus: isPaid ? 'Paid (Razorpay)' : 'Awaiting',
+        paymentClass: isPaid ? 'badge-green' : 'badge-gray',
+        releaseStatus: isPaid ? 'Released' : 'Held',
+        releaseClass: isPaid ? 'badge-green' : 'badge-gray'
+      };
+    });
 
   const handlePayRazorpay = (payment) => {
-    alert(`Initializing Razorpay checkout for invoice ${payment.invId} (Amount: ${payment.amount})...`);
+    toast.success(`Initializing Razorpay checkout for invoice ${payment.invId} (Amount: ${payment.amount})...`);
     apiSim.verifyRazorpayPayment(payment.invId, payment.amountVal).then(() => {
-      setPaymentsList(prev => prev.map(p => {
-        if (p.invId === payment.invId) {
-          return {
-            ...p,
-            paymentStatus: 'Paid (Razorpay)',
-            paymentClass: 'badge-green',
-            releaseStatus: 'Released',
-            releaseClass: 'badge-green'
-          };
-        }
-        return p;
-      }));
-      alert(`Razorpay payment of ${payment.amount} successfully captured!\ne-WR Negotiable Lien has been Released automatically.`);
+      if (onPayPO) {
+        onPayPO(payment.poDbId);
+      }
+      toast.success(`Razorpay payment of ${payment.amount} successfully captured!\ne-WR Negotiable Lien has been Released automatically.`);
     });
   };
 
@@ -60,7 +96,7 @@ export default function Market({
   };
 
   // Filtered POs
-  const filteredPOs = pos.filter(po => {
+  const filteredPOs = formattedPOs.filter(po => {
     if (poFilter === 'All') return true;
     if (poFilter === 'Open') return po.status === 'Accepted';
     if (poFilter === 'In Transit') return po.status === 'In Transit';
@@ -70,29 +106,23 @@ export default function Market({
 
   // Handle Raise PO click from Marketplace
   const handleRaisePO = (lot) => {
-    onReserveLot(lot.id);
+    if (onReserveLot) onReserveLot(lot.id);
 
     const priceRate = lot.commodity === 'Rice' ? 27600 : (lot.commodity === 'Groundnut' ? 51800 : 38200);
     const tonnage = lot.quantity / 1000;
-    const valuationVal = tonnage * priceRate;
-    const valuationLakhs = (valuationVal / 100000).toFixed(1);
-
     const newPoId = `PO-2026-0${113 + pos.length}`;
-    const newPO = {
-      id: newPoId,
-      buyerName: role === 'market_partner' ? 'Raigad Mart' : 'External Partner',
-      buyerCity: 'Mumbai',
-      commodity: `${lot.commodity} - ${lot.grade}`,
-      qty: tonnage,
-      price: priceRate,
-      total: `₹${valuationLakhs}L`,
-      warehouse: lot.warehouse,
-      status: 'Accepted',
-      payment: 'Pending'
-    };
+    
+    if (onCreatePO) {
+      onCreatePO({
+        id: newPoId,
+        commodity: lot.commodity,
+        qty: tonnage,
+        price: priceRate,
+        warehouse: lot.warehouse
+      });
+    }
 
-    setPos(prev => [newPO, ...prev]);
-    alert(`Institutional PO ${newPoId} raised successfully for Available Lot ${lot.id}! Stock reserved for dispatch.`);
+    toast.success(`Institutional PO ${newPoId} raised successfully for Available Lot ${lot.id}! Stock reserved for dispatch.`);
   };
 
   // Handle Create PO from Form
@@ -101,29 +131,23 @@ export default function Market({
     const qtyMT = Number(newPoQty);
     const priceMT = Number(newPoPrice);
     if (qtyMT <= 0 || priceMT <= 0) {
-      alert('Please enter valid quantities.');
+      toast.error('Please enter valid quantities.');
       return;
     }
 
-    const totalValuation = qtyMT * priceMT;
-    const valuationLakhs = (totalValuation / 100000).toFixed(1);
     const newPoId = `PO-2026-0${113 + pos.length}`;
 
-    const newPO = {
-      id: newPoId,
-      buyerName: role === 'market_partner' ? 'Raigad Mart' : 'External Partner',
-      buyerCity: 'Mumbai',
-      commodity: `${newPoCommodity} - Grade A`,
-      qty: qtyMT,
-      price: priceMT,
-      total: `₹${valuationLakhs}L`,
-      warehouse: newPoWarehouse,
-      status: 'Accepted',
-      payment: 'Pending'
-    };
+    if (onCreatePO) {
+      onCreatePO({
+        id: newPoId,
+        commodity: newPoCommodity,
+        qty: qtyMT,
+        price: priceMT,
+        warehouse: newPoWarehouse
+      });
+    }
 
-    setPos(prev => [newPO, ...prev]);
-    alert(`Purchase Order ${newPoId} created successfully! Awaiting FPO dispatch approval.`);
+    toast.success(`Purchase Order ${newPoId} created successfully! Awaiting FPO dispatch approval.`);
     
     // Reset form
     setNewPoQty('20');
@@ -164,7 +188,7 @@ export default function Market({
               <button 
                 className="btn btn-outline" 
                 style={{ padding: '6px 12px', fontSize: '12px', background: '#fff' }}
-                onClick={() => alert('eNAM Mandi benchmark rates synchronized successfully.')}
+                onClick={() => toast.success('eNAM Mandi benchmark rates synchronized successfully.')}
               >
                 Sync Mandi Rates (eNAM)
               </button>
@@ -240,12 +264,12 @@ export default function Market({
           <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
             <div className="stat-card">
               <div className="stat-label">Total Open POs</div>
-              <div className="stat-value">{pos.filter(p => p.status === 'Accepted').length}</div>
+              <div className="stat-value">{formattedPOs.filter(p => p.status === 'Accepted').length}</div>
               <div className="stat-sub">Awaiting dispatch</div>
             </div>
             <div className="stat-card">
               <div className="stat-label">Total Fulfilled</div>
-              <div className="stat-value">{pos.filter(p => p.status === 'Delivered').length}</div>
+              <div className="stat-value">{formattedPOs.filter(p => p.status === 'Delivered').length}</div>
               <div className="stat-sub">Received at destination</div>
             </div>
             <div className="stat-card">
@@ -370,6 +394,7 @@ export default function Market({
                         <td style={{ fontWeight: '600' }}>{po.total}</td>
                         <td>
                           <span className={`badge ${
+                            po.status === 'Pending' ? 'badge-gray' :
                             po.status === 'Accepted' ? 'badge-blue' :
                             po.status === 'In Transit' ? 'badge-amber' :
                             'badge-green'

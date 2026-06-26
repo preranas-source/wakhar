@@ -36,7 +36,8 @@ export default function Layout({
     aggregator: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="6" height="6" rx="1"/><rect x="9" y="3" width="6" height="6" rx="1"/><rect x="16" y="3" width="6" height="6" rx="1"/><path d="M5 9v3M12 9v3M19 9v3M5 12h14M12 12v9"/></svg>,
     warehouses: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
     reports: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
-    integrations: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+    integrations: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>,
+    rbac: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
   };
 
   const getNavigationByRole = (currentRole) => {
@@ -82,6 +83,12 @@ export default function Layout({
               { id: 'transfers', label: 'Stock Movements', icon: icons.transfers },
               { id: 'dispatch', label: 'Dispatch Notes', badge: dispatchesCount > 0 ? dispatchesCount : null, icon: icons.dispatch }
             ]
+          },
+          {
+            group: 'Management',
+            items: [
+              { id: 'users', label: 'Staff Management', icon: icons.farmer }
+            ]
           }
         ];
       case 'fpo_staff':
@@ -108,6 +115,7 @@ export default function Layout({
             group: 'Inventory',
             items: [
               { id: 'inventory', label: 'Inventory Overview', icon: icons.inventory },
+              { id: 'warehouses', label: 'Warehouses', icon: icons.warehouses },
               { id: 'transfers', label: 'Stock Transfers', icon: icons.transfers },
               { id: 'dispatch', label: 'Dispatches', badge: dispatchesCount > 0 ? dispatchesCount : null, icon: icons.dispatch }
             ]
@@ -132,6 +140,7 @@ export default function Layout({
               { id: 'users', label: 'User Management', icon: icons.farmer },
               { id: 'fpos', label: 'FPO Management', icon: icons.warehouses },
               { id: 'warehouses', label: 'Warehouse Management', icon: icons.warehouses },
+              { id: 'rbac', label: 'Role Management', icon: icons.rbac },
               { id: 'dashboard', label: 'System Dashboard', icon: icons.dashboard }
             ]
           }

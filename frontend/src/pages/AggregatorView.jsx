@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import MapTracker from '../components/MapTracker';
+import toast from 'react-hot-toast';
 
 // Pure/External helper functions to bypass React purity linter checks
 function getMockVehicleNo() {
@@ -66,7 +67,7 @@ export default function AggregatorView({
   // List on eNAM action
   const handleListOnEnam = (count, fpoName) => {
     setListedOnEnam(prev => prev + count);
-    alert(`Successfully synchronized and listed ${count} FPO warehouse crop lots from ${fpoName} on eNAM national portal.`);
+    toast.success(`Successfully synchronized and listed ${count} FPO warehouse crop lots from ${fpoName} on eNAM national portal.`);
     if (onAddActivity) {
       onAddActivity('market', `e-Market Linkage — Listed ${count} lots from ${fpoName} on eNAM B2B portal successfully.`);
     }
@@ -75,7 +76,7 @@ export default function AggregatorView({
   const handleListAll = () => {
     const totalLotsToSubmit = rollupData.reduce((sum, item) => sum + item.activeLots, 0);
     setListedOnEnam(prev => prev + totalLotsToSubmit);
-    alert(`Successfully listed all ${totalLotsToSubmit} active lots across linked FPO warehouses on eNAM!`);
+    toast.success(`Successfully listed all ${totalLotsToSubmit} active lots across linked FPO warehouses on eNAM!`);
     if (onAddActivity) {
       onAddActivity('market', `e-Market Linkage — Consolidated submission of ${totalLotsToSubmit} lots on eNAM completed.`);
     }
@@ -85,7 +86,7 @@ export default function AggregatorView({
   const handleCreateBulkDispatch = (e) => {
     e.preventDefault();
     if (selectedLots.length === 0) {
-      alert('Please select at least one lot for bulk dispatch.');
+      toast.error('Please select at least one lot for bulk dispatch.');
       return;
     }
 
@@ -137,7 +138,7 @@ export default function AggregatorView({
       onAddActivity('dispatch', `Fleet Logistics — Dispatched bulk cargo (${lotNames}) containing ${selectedLots.length} lot(s) to ${destinationMarket} via ${vehicleNo}.`);
     }
 
-    alert(`Bulk dispatch successfully created for ${selectedLots.length} lot(s). Assigned transit fleet vehicle: ${vehicleNo}.`);
+    toast.success(`Bulk dispatch successfully created for ${selectedLots.length} lot(s). Assigned transit fleet vehicle: ${vehicleNo}.`);
     setSelectedLots([]);
   };
 
@@ -203,7 +204,7 @@ export default function AggregatorView({
           <div className="section-title">Multi-Warehouse Stock Rollup</div>
           <button 
             className="btn btn-outline"
-            onClick={() => alert('Exporting consolidated stock ledger report as CSV... Download started.')}
+            onClick={() => toast.success('Exporting consolidated stock ledger report as CSV... Download started.')}
           >
             Export Consolidated
           </button>
@@ -397,7 +398,7 @@ export default function AggregatorView({
               <button 
                 type="button" 
                 className="btn btn-outline"
-                onClick={() => alert(`Successfully queued ${selectedLots.length} lot(s) for eNAM marketing board listing.`)}
+                onClick={() => toast.success(`Successfully queued ${selectedLots.length} lot(s) for eNAM marketing board listing.`)}
               >
                 List on eNAM
               </button>

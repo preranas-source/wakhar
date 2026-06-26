@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api';
+import toast from 'react-hot-toast';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -26,22 +27,26 @@ export const setupInterceptors = (onUnauthorized, onForbidden) => {
       if (error.response) {
         const { status, data } = error.response;
         if (status === 401) {
-          onUnauthorized();
+          const isLoginRequest = error.config && error.config.url && (error.config.url.includes('/auth/login') || error.config.url.includes('/auth/token'));
+          const isLoginPage = window.location.pathname.includes('-login');
+          if (!isLoginRequest && !isLoginPage) {
+            onUnauthorized();
+          }
         } else if (status === 403) {
           if (onForbidden) {
             onForbidden();
           } else {
-            alert(`Permission Denied on ${error.config.url}: ${data?.detail || 'You do not have access to this resource.'}`);
+            toast.error(`Permission Denied: ${data?.detail || 'You do not have access to this resource.'}`);
             window.location.href = '/access-denied';
           }
         } else if (status === 404) {
-          alert(`Resource Not Found: ${data?.detail || 'The requested resource was not found.'}`);
+          toast.error(`Resource Not Found: ${data?.detail || 'The requested resource was not found.'}`);
         } else if (status === 422) {
           const errors = data?.detail;
           const errorMsg = Array.isArray(errors)
             ? errors.map(err => `${err.loc.join('.')}: ${err.msg}`).join(', ')
             : data?.detail || 'Validation error occurred.';
-          alert(`Validation Error: ${errorMsg}`);
+          toast.error(`Validation Error: ${errorMsg}`);
         }
       } else {
         console.error('API client error:', error.message);

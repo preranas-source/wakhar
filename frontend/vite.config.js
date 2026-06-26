@@ -11,5 +11,10 @@ export default defineConfig({
       'react-dom': path.resolve(__dirname, '../node_modules/react-dom'),
       'react/jsx-runtime': path.resolve(__dirname, '../node_modules/react/jsx-runtime')
     }
+  },
+  server: {
+    watch: {
+      usePolling: true
+    }
   }
 })

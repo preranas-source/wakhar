@@ -6,15 +6,17 @@ import '../landing.css';
 export default function LoginPage({ role, icon, route }) {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [form, setForm] = useState({ id: '', password: '' });
+  const [form, setForm] = useState({ password: '' });
+  const [countryCode, setCountryCode] = useState('+91');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const labels = {
-    farmer: { idLabel: 'Farmer ID / Phone', idPlaceholder: 'e.g. +919876543210', heading: 'Farmer Portal', sub: 'Access your warehouse receipts, stock status, and more.' },
-    fpo: { idLabel: 'FPO User Phone', idPlaceholder: 'e.g. +919876500001', heading: 'FPO Manager Portal', sub: 'Manage warehouse operations, intake, grading, and dispatch.' },
-    aggregator: { idLabel: 'Aggregator Phone', idPlaceholder: 'e.g. +919876500003', heading: 'Aggregator Console', sub: 'Oversee multiple warehouses, transfers, and bulk dispatch.' },
-    market: { idLabel: 'Market Partner Phone', idPlaceholder: 'e.g. +919876500004', heading: 'Market Partner Portal', sub: 'Browse stock, place orders, and track deliveries.' },
+    farmer: { idLabel: 'Farmer ID / Phone', idPlaceholder: 'e.g. 9876543210', heading: 'Farmer Portal', sub: 'Access your warehouse receipts, stock status, and more.' },
+    fpo: { idLabel: 'FPO User Phone', idPlaceholder: 'e.g. 9876500001', heading: 'FPO Manager Portal', sub: 'Manage warehouse operations, intake, grading, and dispatch.' },
+    aggregator: { idLabel: 'Aggregator Phone', idPlaceholder: 'e.g. 9876500003', heading: 'Aggregator Console', sub: 'Oversee multiple warehouses, transfers, and bulk dispatch.' },
+    market: { idLabel: 'Market Partner Phone', idPlaceholder: 'e.g. 9876500004', heading: 'Market Partner Portal', sub: 'Browse stock, place orders, and track deliveries.' },
   }[role] || {};
 
   const handleSubmit = async (e) => {
@@ -22,7 +24,9 @@ export default function LoginPage({ role, icon, route }) {
     setLoading(true);
     setError('');
     try {
-      await login(form.id, form.password);
+      const cleanPhone = phoneNumber.trim().replace(/[^0-9]/g, '');
+      const fullPhoneId = `${countryCode}${cleanPhone}`;
+      await login(fullPhoneId, form.password);
     } catch (err) {
       console.error('Login failed:', err);
       if (err.response && err.response.data && err.response.data.detail) {
@@ -60,14 +64,36 @@ export default function LoginPage({ role, icon, route }) {
         <form className="lp-login-form" onSubmit={handleSubmit}>
           <div>
             <label className="lp-login-label">{labels.idLabel}</label>
-            <input
-              className="lp-login-input"
-              type="text"
-              placeholder={labels.idPlaceholder}
-              value={form.id}
-              onChange={e => setForm(f => ({ ...f, id: e.target.value }))}
-              required
-            />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <select
+                value={countryCode}
+                onChange={e => setCountryCode(e.target.value)}
+                style={{
+                  width: '110px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '6px',
+                  color: 'white',
+                  padding: '10px 8px',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="+91" style={{ background: '#1c1a14', color: 'white' }}>+91 (IN)</option>
+                <option value="+1" style={{ background: '#1c1a14', color: 'white' }}>+1 (US)</option>
+                <option value="+44" style={{ background: '#1c1a14', color: 'white' }}>+44 (UK)</option>
+                <option value="+971" style={{ background: '#1c1a14', color: 'white' }}>+971 (AE)</option>
+              </select>
+              <input
+                className="lp-login-input"
+                style={{ flex: 1, margin: 0 }}
+                type="tel"
+                placeholder={labels.idPlaceholder}
+                value={phoneNumber}
+                onChange={e => setPhoneNumber(e.target.value)}
+                required
+              />
+            </div>
           </div>
           <div>
             <label className="lp-login-label">Password / PIN</label>

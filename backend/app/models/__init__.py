@@ -1,7 +1,9 @@
 """Import all models so Alembic can discover them for autogeneration."""
 
 from .base import Base, TimestampMixin
-from .user import User, UserRole
+from .user import User
+from .role import Role
+from .permission import Permission
 from .fpo import FPO
 from .warehouse import Warehouse, WarehouseType
 from .farmer import Farmer
@@ -15,12 +17,14 @@ from .purchase_order import PurchaseOrder, POStatus, PaymentStatus
 from .activity_log import ActivityLog, ActivityType
 from .stock_audit import StockAudit, AuditStatus
 from .idempotency import IdempotencyRecord
+from .stock_transfer import StockTransfer, TransferStatus
 
 __all__ = [
     "Base",
     "TimestampMixin",
     "User",
-    "UserRole",
+    "Role",
+    "Permission",
     "FPO",
     "Warehouse",
     "WarehouseType",
@@ -48,4 +52,6 @@ __all__ = [
     "StockAudit",
     "AuditStatus",
     "IdempotencyRecord",
+    "StockTransfer",
+    "TransferStatus",
 ]

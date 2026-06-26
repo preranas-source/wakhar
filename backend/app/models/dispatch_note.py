@@ -27,6 +27,8 @@ class DispatchNote(Base, TimestampMixin):
     commodity_desc = Column(String(200), nullable=False)  # "Soybean (JS-335)"
     quantity_desc = Column(String(50), nullable=False)  # "12 MT"
     destination = Column(String(200), nullable=False)  # "Satara Aggregator"
+    destination_lat = Column(Numeric(10, 7), nullable=True)
+    destination_lng = Column(Numeric(10, 7), nullable=True)
 
     buyer_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     vehicle_reg = Column(String(20), nullable=False)  # "MH-11-AB-4421"

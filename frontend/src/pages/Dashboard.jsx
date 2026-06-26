@@ -16,19 +16,38 @@ export default function Dashboard({
   receipts,
   setActiveTab,
   activities,
-  role = 'fpo'
+  role = 'fpo',
+  currentUser,
+  dbWarehouses = [],
+  dbFarmers = [],
+  dbFpos = [],
+  dbUsers = [],
+  pos = []
 }) {
+  // Filter data based on current FPO if role is 'fpo'
+  const filteredIntakes = (role === 'fpo' && currentUser?.fpo_id)
+    ? intakes.filter(lot => lot.fpoId === currentUser.fpo_id)
+    : intakes;
+
+  const filteredDispatches = (role === 'fpo' && currentUser?.fpo_id)
+    ? dispatches.filter(d => d.fpoId === currentUser.fpo_id)
+    : dispatches;
+
+  const filteredReceipts = (role === 'fpo' && currentUser?.fpo_id)
+    ? receipts.filter(r => r.fpoId === currentUser.fpo_id)
+    : receipts;
+
   // --- Operational Calculations (FPO / Core data) ---
-  const totalStockKg = intakes
+  const totalStockKg = filteredIntakes
     .filter(lot => lot.status !== 'Returned')
     .reduce((sum, lot) => sum + Number(lot.quantity || 0), 0);
   const totalStockMT = (totalStockKg / 1000).toFixed(1);
 
-  const activeWRs = receipts.length;
-  const pledgedWRs = receipts.filter(r => r.collateralStatus === 'Disbursed' || r.collateralStatus === 'Applied').length;
-  const inTransitCount = dispatches.filter(d => d.status === 'In Transit').length;
+  const activeWRs = filteredReceipts.length;
+  const pledgedWRs = filteredReceipts.filter(r => r.collateralStatus === 'Disbursed' || r.collateralStatus === 'Applied').length;
+  const inTransitCount = filteredDispatches.filter(d => d.status === 'In Transit').length;
 
-  const commodityTotals = intakes
+  const commodityTotals = filteredIntakes
     .filter(lot => lot.status !== 'Returned')
     .reduce((acc, lot) => {
       const comm = lot.commodity || 'Others';
@@ -38,7 +57,7 @@ export default function Dashboard({
   const totalFilteredStock = Object.values(commodityTotals).reduce((a, b) => a + b, 0) || 1;
 
   const cropRates = { Rice: 62.5, Wheat: 22.8, Soybean: 47.2, Onion: 18.5, Groundnut: 68 };
-  const totalValue = intakes
+  const totalValue = filteredIntakes
     .filter(lot => lot.status !== 'Returned')
     .reduce((sum, lot) => {
       const rate = cropRates[lot.commodity] || 20;
@@ -46,14 +65,16 @@ export default function Dashboard({
     }, 0);
   const totalValueL = (totalValue / 100000).toFixed(2);
 
-  const highMoistureLots = intakes.filter(lot => lot.moisture > 14 && lot.status !== 'Returned');
+  const highMoistureLots = filteredIntakes.filter(lot => lot.moisture > 14 && lot.status !== 'Returned');
   const alertCount = highMoistureLots.length;
-  const pendingQCCount = intakes.filter(lot => lot.status === 'QC Pending').length;
-  const recentDispatches = dispatches.slice(0, 3);
+  const pendingQCCount = filteredIntakes.filter(lot => lot.status === 'QC Pending').length;
+  const recentDispatches = filteredDispatches.slice(0, 3);
 
   // --- Farmer Specific Calculations (Suresh Patil: FM-00412) ---
-  const farmerIntakes = intakes.filter(lot => lot.farmerId === 'FM-00412' && lot.status !== 'Returned');
-  const farmerReceipts = receipts.filter(r => r.farmerId === 'FM-00412');
+  const currentFarmer = dbFarmers.find(f => f.user_id === currentUser?.id);
+  const farmerCode = currentFarmer ? currentFarmer.farmer_code : 'FM-00412';
+  const farmerIntakes = intakes.filter(lot => (lot.farmerId === farmerCode || lot.dbFarmerId === currentFarmer?.id) && lot.status !== 'Returned');
+  const farmerReceipts = receipts.filter(r => r.farmerId === farmerCode || r.dbFarmerId === currentFarmer?.id);
   const farmerStockKg = farmerReceipts.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
   const farmerActiveWRs = farmerReceipts.filter(r => r.quantity > 0).length;
   const farmerPledgedLoans = farmerReceipts.reduce((sum, r) => sum + Number(r.loanAmount || 0), 0);
@@ -63,17 +84,67 @@ export default function Dashboard({
   }, 0);
 
   // --- Aggregator Calculations (Multi-Warehouse grid) ---
-  const networkCapacities = [
-    { name: 'Wai FPO WH', used: 342, total: 500, percent: 68 },
-    { name: 'Phaltan FPO WH', used: 712, total: 800, percent: 89, warning: true },
-    { name: 'Baramati FPO WH', used: 288, total: 600, percent: 48 }
-  ];
+  const networkCapacities = dbWarehouses.map(wh => {
+    const used = parseFloat(wh.current_stock_mt) || 0;
+    const total = parseFloat(wh.capacity_mt) || 1;
+    const percent = Math.min(100, Math.round((used / total) * 100));
+    return {
+      name: wh.name,
+      used: Number(used.toFixed(1)),
+      total: Number(total.toFixed(0)),
+      percent: percent,
+      warning: percent >= 85
+    };
+  });
 
   // --- Market Partner / Buyer Calculations (Raigad Mart) ---
-  const marketplaceTotalTonnage = (totalStockKg / 1000 * 0.75).toFixed(1); // 75% of stock listed for sale
-  const buyerActivePOsCount = 3;
-  const buyerInTransitTons = 12; // DN-0082 soybean cargo
-  const buyerDuesPending = 12.3; // ₹12.3L outstanding invoices
+  const availableStockKg = intakes
+    .filter(lot => lot.status === 'Available')
+    .reduce((sum, lot) => sum + Number(lot.quantity || 0), 0);
+  const marketplaceTotalTonnage = (availableStockKg / 1000).toFixed(1);
+
+  const buyerPOs = pos.filter(po => po.buyer_id === currentUser?.id || currentUser?.role === 'admin');
+  const buyerActivePOsCount = buyerPOs.filter(po => po.status === 'pending' || po.status === 'accepted').length;
+
+  const buyerDispatches = dispatches.filter(d => d.buyerId === currentUser?.id || currentUser?.role === 'admin');
+  const buyerInTransitKg = buyerDispatches
+    .filter(d => d.status === 'In Transit')
+    .reduce((sum, d) => sum + Number(d.quantityKg || 0), 0);
+  const buyerInTransitTons = (buyerInTransitKg / 1000).toFixed(1);
+
+  const pendingPOs = buyerPOs.filter(po => po.payment_status === 'pending');
+  const totalDues = pendingPOs.reduce((sum, po) => {
+    const qtyMT = parseFloat(po.quantity_kg) / 1000.0;
+    const price = parseFloat(po.price_per_mt) || 0.0;
+    return sum + (qtyMT * price);
+  }, 0);
+  const buyerDuesPending = (totalDues / 100000.0).toFixed(1);
+
+  // --- Weekly Cumulative Deposit Trend Chart (dynamic 30-day generator) ---
+  const now = new Date();
+  const intervals = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 5 * 24 * 60 * 60 * 1000);
+    intervals.push(d);
+  }
+  const chartData = intervals.map(intervalDate => {
+    const sumKg = filteredIntakes
+      .filter(lot => {
+        const lotDateStr = lot.dateRaw || lot.date;
+        if (!lotDateStr) return false;
+        const lotDate = new Date(lotDateStr);
+        return lotDate <= intervalDate;
+      })
+      .reduce((sum, lot) => sum + Number(lot.quantity || 0), 0);
+    return Number((sumKg / 1000).toFixed(1));
+  });
+  const chartLabels = intervals.map(d => 
+    d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })
+  );
+
+  const farmerFpoId = currentFarmer ? currentFarmer.fpo_id : (currentUser?.fpo_id || 1);
+  const linkedFpo = dbFpos.find(fpo => fpo.id === farmerFpoId);
+  const fpoManager = dbUsers.find(u => u.role === 'fpo_manager' && u.fpo_id === farmerFpoId);
 
   // Activity type config
   const activityConfig = {
@@ -211,9 +282,9 @@ export default function Dashboard({
               <div className="card" style={{ background: 'var(--green-light)', border: '1px solid rgba(45,106,79,0.2)' }}>
                 <div className="card-body" style={{ padding: '16px 20px' }}>
                   <div style={{ fontSize: '12px', color: 'var(--green)', fontWeight: 'bold', textTransform: 'uppercase' }}>Linked FPO Coordination Office</div>
-                  <div style={{ fontSize: '15px', fontWeight: 'bold', color: 'var(--text)', marginTop: '6px' }}>Wai Farmer Producer Organization</div>
-                  <div style={{ fontSize: '12.5px', color: 'var(--text2)', marginTop: '4px' }}>Manager: Rajesh Bhosale</div>
-                  <div style={{ fontSize: '12.5px', color: 'var(--text2)', marginTop: '2px' }}>Office Hotlines: +91 98210 55660</div>
+                  <div style={{ fontSize: '15px', fontWeight: 'bold', color: 'var(--text)', marginTop: '6px' }}>{linkedFpo ? linkedFpo.name : 'Wai Farmer Producer Organization'}</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--text2)', marginTop: '4px' }}>Manager: {fpoManager ? fpoManager.full_name : 'Rajesh Bhosale'}</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--text2)', marginTop: '2px' }}>Office Hotlines: {linkedFpo ? (linkedFpo.contact_phone || '+91 98210 55660') : '+91 98210 55660'}</div>
                 </div>
               </div>
             </div>
@@ -373,8 +444,8 @@ export default function Dashboard({
               <div className="card-body">
                 <div style={{ height: '180px' }}>
                   <LineChart
-                    data={[8.5, 12.0, 16.4, 22.1, 14.8, Number(totalStockMT)]}
-                    labels={['W1', 'W2', 'W3', 'W4', 'W5', 'Now']}
+                    data={chartData}
+                    labels={chartLabels}
                     color="var(--green)"
                     fillColor="rgba(45,106,79,0.1)"
                     suffix=" MT"
@@ -471,7 +542,7 @@ export default function Dashboard({
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
               </div>
               <div className="stat-label">Active network warehouses</div>
-              <div className="stat-value">3 <span style={{ fontSize: '14px', fontWeight: '400', color: 'var(--text3)' }}>centers</span></div>
+              <div className="stat-value">{dbWarehouses.length} <span style={{ fontSize: '14px', fontWeight: '400', color: 'var(--text3)' }}>centers</span></div>
               <div className="stat-sub">MahaFPC Satara Network</div>
             </div>
 
@@ -681,6 +752,151 @@ export default function Dashboard({
                     <span style={{ fontWeight: '600', color: 'var(--purple)', fontSize: '12.5px' }}>GRN Verification</span>
                     <span style={{ fontSize: '11px', color: 'var(--text3)' }}>Reconcile Receipts</span>
                   </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </>
+      )}
+
+      {/* -------------------- 5. ADMIN / SYSTEM DASHBOARD VIEW -------------------- */}
+      {role === 'admin' && (
+        <>
+          {/* STAT CARDS */}
+          <div className="stat-grid">
+            <div className="stat-card db-stat-card" onClick={() => setActiveTab('fpos')} style={{ cursor: 'pointer' }}>
+              <div className="db-stat-icon" style={{ background: 'var(--green-light)', color: 'var(--green)' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="6" height="6" rx="1"/><rect x="9" y="3" width="6" height="6" rx="1"/><rect x="16" y="3" width="6" height="6" rx="1"/><path d="M5 9v3M12 9v3M19 9v3M5 12h14M12 12v9"/></svg>
+              </div>
+              <div className="stat-label">Registered FPOs</div>
+              <div className="stat-value">
+                {dbFpos.length || 3} <span style={{ fontSize: '14px', fontWeight: '400', color: 'var(--text3)' }}>networks</span>
+              </div>
+              <div className="stat-sub">Across agricultural zones</div>
+            </div>
+
+            <div className="stat-card db-stat-card" onClick={() => setActiveTab('warehouses')} style={{ cursor: 'pointer' }}>
+              <div className="db-stat-icon" style={{ background: 'var(--blue-light)', color: 'var(--blue)' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              </div>
+              <div className="stat-label">Active Warehouse Hubs</div>
+              <div className="stat-value">{dbWarehouses.length} <span style={{ fontSize: '14px', fontWeight: '400', color: 'var(--text3)' }}>centers</span></div>
+              <div className="stat-sub">Core storage capacity hubs</div>
+            </div>
+
+            <div className="stat-card db-stat-card" onClick={() => setActiveTab('users')} style={{ cursor: 'pointer' }}>
+              <div className="db-stat-icon" style={{ background: 'var(--purple-light)', color: 'var(--purple)' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+              <div className="stat-label">Total System Users</div>
+              <div className="stat-value">{dbUsers.length || 5} <span style={{ fontSize: '14px', fontWeight: '400', color: 'var(--text3)' }}>users</span></div>
+              <div className="stat-sub">Administrators & staff logins</div>
+            </div>
+
+            <div className="stat-card db-stat-card" onClick={() => setActiveTab('users')} style={{ cursor: 'pointer' }}>
+              <div className="db-stat-icon" style={{ background: 'var(--amber-light)', color: 'var(--amber)' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+              </div>
+              <div className="stat-label">Registered Farmers</div>
+              <div className="stat-value">{dbFarmers.length || 15} <span style={{ fontSize: '14px', fontWeight: '400', color: 'var(--text3)' }}>producers</span></div>
+              <div className="stat-sub">e-WR enabled farmers network</div>
+            </div>
+          </div>
+
+          {/* MAIN BODY admin */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '20px', alignItems: 'start' }}>
+            
+            {/* Left: Capacity rollup charts */}
+            <div className="card">
+              <div className="card-header">
+                <div className="section-title">Network Warehouse Capacity Rollups</div>
+              </div>
+              <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {networkCapacities.map(wh => (
+                  <div key={wh.name}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '6px' }}>
+                      <span><strong>{wh.name}</strong></span>
+                      <span style={{ color: wh.warning ? 'var(--amber)' : 'var(--green)', fontWeight: 'bold' }}>
+                        {wh.percent}% Capacity ({wh.used}/{wh.total} MT)
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: '15px', background: '#EDE9E0', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div style={{ width: `${wh.percent}%`, height: '100%', background: wh.warning ? 'var(--amber)' : 'var(--green)' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: Quick actions & Activity */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div className="card">
+                <div className="card-header">
+                  <div className="section-title">Administrative Panels</div>
+                </div>
+                <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <button className="db-quicklink" onClick={() => setActiveTab('users')} style={{ borderColor: 'rgba(45,106,79,0.2)' }}>
+                    <span>👥</span>
+                    <span style={{ fontWeight: '600', color: 'var(--green)', fontSize: '12.5px' }}>Users Registry</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text3)' }}>Role Provisioning</span>
+                  </button>
+                  <button className="db-quicklink" onClick={() => setActiveTab('fpos')} style={{ borderColor: 'rgba(181,98,10,0.2)' }}>
+                    <span>🌾</span>
+                    <span style={{ fontWeight: '600', color: 'var(--amber)', fontSize: '12.5px' }}>FPO Networks</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text3)' }}>Register FPO</span>
+                  </button>
+                  <button className="db-quicklink" onClick={() => setActiveTab('warehouses')} style={{ borderColor: 'rgba(26,77,122,0.2)' }}>
+                    <span>🏢</span>
+                    <span style={{ fontWeight: '600', color: 'var(--blue)', fontSize: '12.5px' }}>Warehouse Hubs</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text3)' }}>GPS & Capacity</span>
+                  </button>
+                  <button className="db-quicklink" onClick={() => setActiveTab('rbac')} style={{ borderColor: 'rgba(74,48,128,0.2)' }}>
+                    <span>🔒</span>
+                    <span style={{ fontWeight: '600', color: 'var(--purple)', fontSize: '12.5px' }}>RBAC Rules</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text3)' }}>Policy Guard</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* System alerts / logs */}
+              <div className="card">
+                <div className="card-header">
+                  <div className="section-title">System Activity Log</div>
+                </div>
+                <div className="card-body" style={{ padding: '0 20px 20px 20px', maxHeight: '300px', overflowY: 'auto' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {activities.length === 0 ? (
+                      <div style={{ fontSize: '12.5px', color: 'var(--text3)', textAlign: 'center', padding: '20px 0' }}>No recent system activities.</div>
+                    ) : (
+                      activities.map((act, idx) => {
+                        const conf = activityConfig[act.type] || { color: 'var(--text3)', bg: 'rgba(0,0,0,0.05)', label: 'Event' };
+                        return (
+                          <div key={idx} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', fontSize: '12.5px' }}>
+                            <span 
+                              style={{ 
+                                padding: '3px 8px', 
+                                borderRadius: '4px', 
+                                background: conf.bg, 
+                                color: conf.color, 
+                                fontWeight: 'bold', 
+                                fontSize: '10px', 
+                                textTransform: 'uppercase',
+                                minWidth: '55px',
+                                textAlign: 'center'
+                              }}
+                            >
+                              {conf.label}
+                            </span>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ color: 'var(--text)', fontWeight: '500' }}>{act.text}</div>
+                              <div style={{ color: 'var(--text3)', fontSize: '11px', marginTop: '2px' }}>{act.time}</div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

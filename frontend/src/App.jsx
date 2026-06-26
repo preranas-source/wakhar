@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import toast, { Toaster } from 'react-hot-toast';
 import { getTranslation, getSubstringsDict, apiSim } from '@wakhar/shared';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -16,6 +17,7 @@ import AggregatorView from './pages/AggregatorView';
 import Warehouses from './pages/Warehouses';
 import Reports from './pages/Reports';
 import Integrations from './pages/Integrations';
+import RBAC from './pages/RBAC';
 import { useAuth } from './hooks/useAuth';
 import apiClient from './services/apiClient';
 import inventoryService from './services/inventoryService';
@@ -26,7 +28,9 @@ import warehouseService from './services/warehouseService';
 import farmerService from './services/farmerService';
 import fpoService from './services/fpoService';
 import qualityService from './services/qualityService';
+import purchaseOrderService from './services/purchaseOrderService';
 import './App.css';
+import FarmerManagement from './pages/FarmerManagement';
 
 export default function App({ roleKey: propRoleKey }) {
   const params = useParams();
@@ -81,20 +85,55 @@ export default function App({ roleKey: propRoleKey }) {
   const [dbCommodities, setDbCommodities] = useState([]);
   const [dbWarehouses, setDbWarehouses] = useState([]);
   const [dbFarmers, setDbFarmers] = useState([]);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [dbUsers, setDbUsers] = useState([]);
   const [dbFpos, setDbFpos] = useState([]);
+  const [pos, setPos] = useState([]);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // Payments filtering states
+  const [payFromDate, setPayFromDate] = useState('');
+  const [payToDate, setPayToDate] = useState('');
+  const [payStatus, setPayStatus] = useState('All');
+  const [payBank, setPayBank] = useState('All');
+  const [paySearch, setPaySearch] = useState('');
+
+  // Add User Form states
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [newUser, setNewUser] = useState({
+    fullName: '',
+    phone: '',
+    email: '',
+    roleId: '3', // FPO Staff
+    fpoId: '1',
+    password: ''
+  });
+  const [addUserError, setAddUserError] = useState('');
+  const [addUserLoading, setAddUserLoading] = useState(false);
+
+  // Add FPO Form states
+  const [showAddFpoModal, setShowAddFpoModal] = useState(false);
+  const [newFpo, setNewFpo] = useState({
+    name: '',
+    code: '',
+    region: '',
+    district: '',
+    contactPhone: '',
+    contactEmail: '',
+    aggregatorId: ''
+  });
+  const [addFpoError, setAddFpoError] = useState('');
+  const [addFpoLoading, setAddFpoLoading] = useState(false);
 
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState(null);
   const [showAlertsModal, setShowAlertsModal] = useState(false);
 
   // Mappers
-  const mapLotToUI = useCallback((lot, farmers = [], commodities = [], warehouses = []) => {
+  const mapLotToUI = useCallback((lot) => {
     const gradeClasses = {
       grade_a: 'badge-green',
       grade_b: 'badge-amber',
-      grade_c: 'badge-red',
+      grade_c: 'badge-orange',
       rejected: 'badge-red',
       pending: 'badge-gray'
     };
@@ -114,32 +153,31 @@ export default function App({ roleKey: propRoleKey }) {
       returned: 'Returned'
     };
     
-    const farmer = farmers.find(f => f.id === lot.farmer_id);
-    const commodity = commodities.find(c => c.id === lot.commodity_id);
-    const warehouse = warehouses.find(w => w.id === lot.warehouse_id);
-
     return {
       id: lot.lot_code,
       dbId: lot.id,
-      farmerId: farmer?.farmer_code || `FM-${lot.farmer_id}`,
+      farmerId: lot.farmer?.farmer_code || `FM-${lot.farmer_id}`,
       dbFarmerId: lot.farmer_id,
-      farmerName: farmer?.name || 'Unknown Farmer',
-      commodity: commodity?.name || 'Unknown Crop',
+      farmerName: lot.farmer?.name || 'Unknown Farmer',
+      commodity: lot.commodity?.name || 'Unknown Crop',
       variety: lot.variety || '',
       quantity: parseFloat(lot.quantity_kg),
       bags: lot.bag_count,
       moisture: parseFloat(lot.moisture_pct || 0),
       grade: gradeLabels[lot.grade] || lot.grade,
       gradeClass: gradeClasses[lot.grade] || 'badge-gray',
-      warehouse: warehouse?.name || 'Unknown Warehouse',
+      warehouse: lot.warehouse?.name || 'Unknown Warehouse',
+      warehouseId: lot.warehouse_id,
+      fpoId: lot.warehouse?.fpo_id,
       zone: lot.zone || '',
       status: statusLabels[lot.status] || lot.status,
       date: lot.intake_date ? new Date(lot.intake_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Unknown Date',
+      dateRaw: lot.intake_date,
       remarks: lot.remarks || ''
     };
   }, []);
 
-  const mapDispatchToUI = useCallback((dn, lots = [], commodities = []) => {
+  const mapDispatchToUI = useCallback((dn) => {
     const statusLabels = {
       created: 'Created',
       in_transit: 'In Transit',
@@ -149,24 +187,24 @@ export default function App({ roleKey: propRoleKey }) {
     const timeline = (dn.timeline_events || [])
       .sort((a, b) => (a.event_order || 0) - (b.event_order || 0))
       .map(event => ({
-        title: event.title,
-        sub: event.subtitle || new Date(event.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        done: event.is_done,
-        active: event.is_active
+        title: event.event_title,
+        sub: event.event_description || new Date(event.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        done: event.is_completed,
+        active: !event.is_completed
       }));
-
-    const lot = lots.find(l => l.id === dn.lot_id);
-    const commodity = lot ? commodities.find(c => c.id === lot.commodity_id) : null;
 
     return {
       id: dn.dn_code,
       dbId: dn.id,
-      lotId: lot?.lot_code || '',
-      commodity: `${commodity?.name || dn.commodity_desc || 'Unknown'} (${lot?.variety || ''})`,
-      quantity: dn.quantity_desc || `${parseFloat(dn.dispatch_quantity_kg) / 1000} MT`,
+      lotId: dn.lot?.lot_code || '',
+      buyerId: dn.buyer_id,
+      warehouseId: dn.lot?.warehouse_id,
+      fpoId: dn.lot?.warehouse?.fpo_id,
+      commodity: `${dn.lot?.commodity?.name || 'Unknown'} (${dn.lot?.variety || ''})`,
+      quantity: `${parseFloat(dn.dispatch_quantity_kg) / 1000} MT`,
       quantityKg: parseFloat(dn.dispatch_quantity_kg),
       destination: dn.destination,
-      vehicle: dn.vehicle_reg,
+      vehicle: dn.vehicle_no,
       status: statusLabels[dn.status] || dn.status,
       timeline: timeline.length > 0 ? timeline : [
         { title: 'Dispatch Note Created', sub: 'Just now', done: true }
@@ -174,7 +212,7 @@ export default function App({ roleKey: propRoleKey }) {
     };
   }, []);
 
-  const mapReceiptToUI = useCallback((wr, lots = [], farmers = [], commodities = [], warehouses = []) => {
+  const mapReceiptToUI = useCallback((wr) => {
     const pledgeStatusLabels = {
       none: 'None',
       applied: 'Applied',
@@ -189,30 +227,29 @@ export default function App({ roleKey: propRoleKey }) {
       pending: 'QC Pending'
     };
 
-    const lot = lots.find(l => l.id === wr.lot_id);
-    const farmer = farmers.find(f => f.id === wr.farmer_id);
-    const commodity = lot ? commodities.find(c => c.id === lot.commodity_id) : null;
-    const warehouse = lot ? warehouses.find(w => w.id === lot.warehouse_id) : null;
-
     return {
-      id: wr.wr_code || '',
+      id: wr.wr_code,
       dbId: wr.id,
-      lotId: lot?.lot_code || '',
-      farmerId: farmer?.farmer_code || `FM-${wr.farmer_id}`,
-      farmerName: farmer?.name || 'Unknown',
-      commodity: commodity?.name || 'Unknown',
-      variety: lot?.variety || '',
+      lotId: wr.lot?.lot_code || '',
+      farmerId: wr.farmer?.farmer_code || `FM-${wr.farmer_id}`,
+      dbFarmerId: wr.farmer_id,
+      farmerName: wr.farmer?.name || 'Unknown',
+      commodity: wr.lot?.commodity?.name || 'Unknown',
+      variety: wr.lot?.variety || '',
       quantity: parseFloat(wr.quantity_kg),
-      bags: lot?.bag_count || 0,
-      moisture: parseFloat(lot?.moisture_pct || 0),
-      grade: gradeLabels[lot?.grade] || lot?.grade || 'QC Pending',
+      bags: wr.lot?.bag_count || 0,
+      moisture: parseFloat(wr.lot?.moisture_pct || 0),
+      grade: gradeLabels[wr.lot?.grade] || wr.lot?.grade || 'QC Pending',
       value: parseFloat(wr.valuation),
       collateralStatus: pledgeStatusLabels[wr.collateral_status] || 'None',
-      pledgeBank: wr.pledge_bank || '',
+      pledgeBank: wr.pledge_bank,
+      warehouse: wr.lot?.warehouse?.name || 'Unknown Warehouse',
+      warehouseId: wr.lot?.warehouse_id,
+      fpoId: wr.lot?.warehouse?.fpo_id,
+      zone: wr.lot?.zone || '',
       loanAmount: parseFloat(wr.loan_amount || 0),
-      warehouse: warehouse?.name || wr.lot?.warehouse?.name || 'Unknown Warehouse',
-      zone: lot?.zone || wr.lot?.zone || '',
       date: wr.issue_date ? new Date(wr.issue_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '',
+      dateRaw: wr.issue_date,
       validity: wr.expiry_date ? new Date(wr.expiry_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
     };
   }, []);
@@ -221,7 +258,7 @@ export default function App({ roleKey: propRoleKey }) {
     setDataLoading(true);
     setDataError(null);
     try {
-      const [lotsData, dispatchesData, receiptsData, statsData, commoditiesData, warehousesData, farmersData, usersData, fposData] = await Promise.all([
+      const [lotsData, dispatchesData, receiptsData, statsData, commoditiesData, warehousesData, farmersData, usersData, fposData, posData] = await Promise.all([
         inventoryService.getLots(),
         dispatchService.getDispatches(),
         inventoryService.getReceipts(),
@@ -229,8 +266,11 @@ export default function App({ roleKey: propRoleKey }) {
         commodityService.getCommodities(),
         warehouseService.getWarehouses(),
         farmerService.getFarmers(),
-        rawRole === 'admin' ? apiClient.get('/api/users/').then(r => r.data).catch(() => []) : Promise.resolve([]),
-        fpoService.getFPOs().catch(() => [])
+        (rawRole === 'admin' || rawRole === 'fpo_manager')
+          ? apiClient.get(`/api/users/${rawRole === 'fpo_manager' ? `?fpo_id=${currentUser?.fpo_id || ''}` : ''}`).then(r => r.data).catch(() => [])
+          : Promise.resolve([]),
+        fpoService.getFPOs().catch(() => []),
+        purchaseOrderService.getPurchaseOrders().catch(() => [])
       ]);
 
       setDbCommodities(commoditiesData);
@@ -238,10 +278,11 @@ export default function App({ roleKey: propRoleKey }) {
       setDbFarmers(farmersData);
       setDbUsers(usersData);
       setDbFpos(fposData);
+      setPos(posData || []);
 
-      setIntakes(lotsData.map(lot => mapLotToUI(lot, farmersData, commoditiesData, warehousesData)));
-      setDispatches(dispatchesData.map(dn => mapDispatchToUI(dn, lotsData, commoditiesData)));
-      setReceipts(receiptsData.map(wr => mapReceiptToUI(wr, lotsData, farmersData, commoditiesData, warehousesData)));
+      setIntakes(lotsData.map(mapLotToUI));
+      setDispatches(dispatchesData.map(mapDispatchToUI));
+      setReceipts(receiptsData.map(mapReceiptToUI));
       
       const mappedActivities = (statsData.recent_activity || []).map(log => ({
         type: log.type,
@@ -732,6 +773,142 @@ export default function App({ roleKey: propRoleKey }) {
     }
   };
 
+  const handleCreatePO = async (newPoData) => {
+    try {
+      const comm = dbCommodities.find(c => newPoData.commodity.includes(c.name));
+      const wh = dbWarehouses.find(w => w.name.includes(newPoData.warehouse));
+
+      const payload = {
+        po_code: newPoData.id,
+        buyer_id: currentUser ? currentUser.id : 1,
+        commodity_id: comm ? comm.id : 1,
+        grade: 'grade_a',
+        quantity_kg: parseFloat(newPoData.qty) * 1000,
+        price_per_mt: parseFloat(newPoData.price),
+        warehouse_id: wh ? wh.id : 1
+      };
+
+      await purchaseOrderService.createPurchaseOrder(payload);
+      await loadAllData();
+    } catch (err) {
+      console.error('Create PO failed:', err);
+      alert('Failed to register Purchase Order on backend.');
+    }
+  };
+
+  const handlePayPO = async (poDbId) => {
+    try {
+      await purchaseOrderService.updatePurchaseOrder(poDbId, {
+        payment_status: 'confirmed',
+        payment_ref: 'SIMULATED_RAZORPAY_REF'
+      });
+      await loadAllData();
+    } catch (err) {
+      console.error('Pay PO failed:', err);
+      alert('Failed to simulate PO payment on backend.');
+    }
+  };
+
+  const handleCreateUserSubmit = async (e) => {
+    e.preventDefault();
+    setAddUserError('');
+    setAddUserLoading(true);
+
+    try {
+      const selectedRole = [
+        { id: 1, name: 'admin' },
+        { id: 2, name: 'farmer' },
+        { id: 3, name: 'fpo_staff' },
+        { id: 4, name: 'fpo_manager' },
+        { id: 5, name: 'aggregator' },
+        { id: 6, name: 'market_partner' }
+      ].find(r => r.id === Number(newUser.roleId));
+
+      const initials = newUser.fullName
+        ? newUser.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+        : 'US';
+
+      const payload = {
+        full_name: newUser.fullName,
+        phone: newUser.phone.trim(),
+        email: newUser.email.trim() || null,
+        role_id: Number(newUser.roleId),
+        role: selectedRole ? selectedRole.name : 'fpo_staff',
+        fpo_id: (selectedRole?.name === 'fpo_manager' || selectedRole?.name === 'fpo_staff') ? Number(newUser.fpoId) : null,
+        password_hash: newUser.password || '123456',
+        initials: initials,
+        is_active: true
+      };
+
+      await apiClient.post('/api/users/', payload);
+      await loadAllData();
+      
+      // Reset form and close
+      setNewUser({
+        fullName: '',
+        phone: '',
+        email: '',
+        roleId: '3',
+        fpoId: '1',
+        password: ''
+      });
+      setShowAddUserModal(false);
+    } catch (err) {
+      console.error('Failed to create user:', err);
+      if (err.response && err.response.data && err.response.data.detail) {
+        const detail = err.response.data.detail;
+        const msg = Array.isArray(detail)
+          ? detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join(', ')
+          : detail;
+        setAddUserError(msg);
+      } else {
+        setAddUserError('Failed to create user. Please make sure the phone number is unique and backend is running.');
+      }
+    } finally {
+      setAddUserLoading(false);
+    }
+  };
+
+  const handleCreateFpoSubmit = async (e) => {
+    e.preventDefault();
+    setAddFpoError('');
+    setAddFpoLoading(true);
+
+    try {
+      const payload = {
+        name: newFpo.name.trim(),
+        code: newFpo.code.trim().toUpperCase(),
+        region: newFpo.region.trim() || null,
+        district: newFpo.district.trim() || null,
+        state: 'Maharashtra',
+        contact_phone: newFpo.contactPhone.trim() || null,
+        contact_email: newFpo.contactEmail.trim() || null,
+        aggregator_id: newFpo.aggregatorId ? Number(newFpo.aggregatorId) : null
+      };
+
+      await fpoService.createFPO(payload);
+      toast.success(`FPO "${newFpo.name}" registered successfully!`);
+      await loadAllData();
+
+      // Reset
+      setNewFpo({
+        name: '',
+        code: '',
+        region: '',
+        district: '',
+        contactPhone: '',
+        contactEmail: '',
+        aggregatorId: ''
+      });
+      setShowAddFpoModal(false);
+    } catch (err) {
+      console.error('Failed to create FPO:', err);
+      setAddFpoError(err.response?.data?.detail || 'Failed to create FPO. Please check your parameters.');
+    } finally {
+      setAddFpoLoading(false);
+    }
+  };
+
   // Render Screens
   if (authLoading || (currentUser && dataLoading && isInitialLoad)) {
     return (
@@ -809,6 +986,12 @@ export default function App({ roleKey: propRoleKey }) {
             activities={activities}
             language={language}
             role={role}
+            currentUser={currentUser}
+            dbWarehouses={dbWarehouses}
+            dbFarmers={dbFarmers}
+            dbFpos={dbFpos}
+            dbUsers={dbUsers}
+            pos={pos}
           />
         )}
 
@@ -820,6 +1003,7 @@ export default function App({ roleKey: propRoleKey }) {
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             language={language}
+            dbWarehouses={dbWarehouses}
           />
         )}
 
@@ -832,6 +1016,7 @@ export default function App({ roleKey: propRoleKey }) {
             setActiveTab={setActiveTab}
             isWizardOverride={true}
             language={language}
+            dbWarehouses={dbWarehouses}
           />
         )}
 
@@ -885,7 +1070,13 @@ export default function App({ roleKey: propRoleKey }) {
         {(activeTab === 'market' || activeTab === 'purchase-orders') && (
           <Market
             intakes={intakes}
+            pos={pos}
+            dbCommodities={dbCommodities}
+            dbWarehouses={dbWarehouses}
+            currentUser={currentUser}
             onReserveLot={handleReserveLot}
+            onCreatePO={handleCreatePO}
+            onPayPO={handlePayPO}
             searchQuery={searchQuery}
             language={language}
             role={role}
@@ -911,7 +1102,14 @@ export default function App({ roleKey: propRoleKey }) {
           />
         )}
 
-        {(activeTab === 'farmer' || activeTab === 'withdrawal-requests' || activeTab === 'farmer-profile') && (
+        {activeTab === 'farmer' && (currentUser?.role === 'fpo_staff' || currentUser?.role === 'fpo_manager') ? (
+          <FarmerManagement
+            language={language}
+            dbFarmers={dbFarmers}
+            currentUser={currentUser}
+            onRefreshData={loadAllData}
+          />
+        ) : (activeTab === 'farmer' || activeTab === 'withdrawal-requests' || activeTab === 'farmer-profile') && (
           <FarmerPortal
             intakes={intakes}
             receipts={receipts}
@@ -967,6 +1165,10 @@ export default function App({ roleKey: propRoleKey }) {
           <Warehouses
             intakes={intakes}
             language={language}
+            dbWarehouses={dbWarehouses}
+            dbFarmers={dbFarmers}
+            dbFpos={dbFpos}
+            onRefreshData={loadAllData}
           />
         )}
 
@@ -982,6 +1184,10 @@ export default function App({ roleKey: propRoleKey }) {
 
         {activeTab === 'integrations' && (
           <Integrations language={language} />
+        )}
+
+        {activeTab === 'rbac' && (
+          <RBAC language={language} onAddActivity={loadAllData} />
         )}
 
         {/* Dynamic renders for FPO Staff Scanner / Admin User / FPO Management / Market Partner Payments */}
@@ -1004,7 +1210,7 @@ export default function App({ roleKey: propRoleKey }) {
           <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 className="section-title">System User Management</h2>
-              <button className="btn btn-primary" onClick={() => alert('Feature to create new user profile')}>+ Create User</button>
+              <button className="btn btn-primary" onClick={() => { setAddUserError(''); setShowAddUserModal(true); }}>+ Create User</button>
             </div>
             <div className="card">
               <div className="table-responsive">
@@ -1040,6 +1246,138 @@ export default function App({ roleKey: propRoleKey }) {
                 </table>
               </div>
             </div>
+
+            {/* Create User Modal Overlay */}
+            {showAddUserModal && (
+              <div className="modal-overlay" onClick={() => setShowAddUserModal(false)}>
+                <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+                  <div className="modal-header">
+                    <div className="modal-title">Create System User</div>
+                    <button className="modal-close" onClick={() => setShowAddUserModal(false)}>×</button>
+                  </div>
+                  
+                  <form onSubmit={handleCreateUserSubmit}>
+                    <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px 24px' }}>
+                      {addUserError && (
+                        <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', borderRadius: '6px', padding: '10px', fontSize: '13px', textAlign: 'center' }}>
+                          ❌ {addUserError}
+                        </div>
+                      )}
+
+                      <div className="form-group">
+                        <label className="form-label">Full Name</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="e.g. Ramesh Patil"
+                          value={newUser.fullName}
+                          onChange={e => setNewUser({ ...newUser, fullName: e.target.value })}
+                          required 
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Phone Number (with Country Code)</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="e.g. +919876500005"
+                          value={newUser.phone}
+                          onChange={e => setNewUser({ ...newUser, phone: e.target.value })}
+                          required 
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Email Address (Optional)</label>
+                        <input 
+                          type="email" 
+                          className="form-input" 
+                          placeholder="e.g. ramesh@example.com"
+                          value={newUser.email}
+                          onChange={e => setNewUser({ ...newUser, email: e.target.value })}
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div className="form-group">
+                          <label className="form-label">System Role</label>
+                          <select 
+                            className="form-select"
+                            value={newUser.roleId}
+                            onChange={e => {
+                              const nextRoleId = e.target.value;
+                              setNewUser({ 
+                                ...newUser, 
+                                roleId: nextRoleId,
+                                fpoId: (rawRole === 'fpo_manager') ? currentUser?.fpo_id?.toString() || '1' : newUser.fpoId
+                              });
+                            }}
+                            style={{ background: '#fff' }}
+                          >
+                            {rawRole === 'admin' ? (
+                              <>
+                                <option value="1">System Admin</option>
+                                <option value="2">Farmer</option>
+                                <option value="3">FPO Staff</option>
+                                <option value="4">FPO Manager</option>
+                                <option value="5">Aggregator</option>
+                                <option value="6">Market Partner</option>
+                              </>
+                            ) : (
+                              <option value="3">FPO Staff</option>
+                            )}
+                          </select>
+                        </div>
+
+                        {(newUser.roleId === '3' || newUser.roleId === '4') && (
+                          <div className="form-group">
+                            <label className="form-label">Linked FPO Hub</label>
+                            {rawRole === 'fpo_manager' ? (
+                              <div style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '13.5px', fontWeight: '500' }}>
+                                {dbFpos.find(f => f.id === currentUser?.fpo_id)?.name || 'My FPO'}
+                              </div>
+                            ) : (
+                              <select 
+                                className="form-select"
+                                value={newUser.fpoId}
+                                onChange={e => setNewUser({ ...newUser, fpoId: e.target.value })}
+                                style={{ background: '#fff' }}
+                              >
+                                {dbFpos.map(fpo => (
+                                  <option key={fpo.id} value={fpo.id}>{fpo.name}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Password / PIN</label>
+                        <input 
+                          type="password" 
+                          className="form-input" 
+                          placeholder="Enter security password"
+                          value={newUser.password}
+                          onChange={e => setNewUser({ ...newUser, password: e.target.value })}
+                          required 
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-footer" style={{ borderTop: '1px solid rgba(0,0,0,0.08)', padding: '16px 24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                      <button type="button" className="btn btn-outline" onClick={() => setShowAddUserModal(false)} disabled={addUserLoading}>
+                        Cancel
+                      </button>
+                      <button type="submit" className="btn btn-primary" disabled={addUserLoading} style={{ background: 'var(--green)', borderColor: 'var(--green)' }}>
+                        {addUserLoading ? 'Creating...' : 'Create User'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1047,7 +1385,7 @@ export default function App({ roleKey: propRoleKey }) {
           <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 className="section-title">FPO Network Management</h2>
-              <button className="btn btn-primary" onClick={() => alert('Feature to create FPO profile')}>+ Register FPO</button>
+              <button className="btn btn-primary" onClick={() => { setAddFpoError(''); setShowAddFpoModal(true); }}>+ Register FPO</button>
             </div>
             <div className="card">
               <div className="table-responsive">
@@ -1059,68 +1397,371 @@ export default function App({ roleKey: propRoleKey }) {
                       <th>FPO Code</th>
                       <th>Region / District</th>
                       <th>Contact Phone</th>
+                      <th>Contact Email</th>
+                      <th>Parent Aggregator</th>
                     </tr>
                   </thead>
                   <tbody>
                     {dbFpos.length === 0 ? (
                       <tr>
-                        <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text3)' }}>Loading FPOs...</td>
+                        <td colSpan="7" style={{ textAlign: 'center', color: 'var(--text3)' }}>Loading FPOs...</td>
                       </tr>
                     ) : (
-                      dbFpos.map(fpo => (
-                        <tr key={fpo.id}>
-                          <td><strong>{fpo.id}</strong></td>
-                          <td>{fpo.name}</td>
-                          <td><span className="badge badge-teal">{fpo.code}</span></td>
-                          <td>{fpo.region} / {fpo.district}</td>
-                          <td>{fpo.contact_phone || 'N/A'}</td>
-                        </tr>
-                      ))
+                      dbFpos.map(fpo => {
+                        const parentAgg = dbFpos.find(p => p.id === fpo.aggregator_id);
+                        return (
+                          <tr key={fpo.id}>
+                            <td><strong>FPO-0{fpo.id}</strong></td>
+                            <td><strong>{fpo.name}</strong></td>
+                            <td><span className="badge badge-teal">{fpo.code}</span></td>
+                            <td>{fpo.region || 'N/A'} / {fpo.district || 'N/A'}</td>
+                            <td>{fpo.contact_phone || 'N/A'}</td>
+                            <td>{fpo.contact_email || 'N/A'}</td>
+                            <td>{parentAgg ? <span className="badge badge-blue">{parentAgg.name}</span> : 'None'}</td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
               </div>
             </div>
+
+            {/* Register FPO Modal */}
+            {showAddFpoModal && (
+              <div className="modal-overlay" onClick={() => setShowAddFpoModal(false)}>
+                <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+                  <div className="modal-header">
+                    <div className="modal-title">Register FPO Organization</div>
+                    <button className="modal-close" onClick={() => setShowAddFpoModal(false)}>×</button>
+                  </div>
+                  
+                  <form onSubmit={handleCreateFpoSubmit}>
+                    <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px 24px' }}>
+                      {addFpoError && (
+                        <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', borderRadius: '6px', padding: '10px', fontSize: '13px', textAlign: 'center' }}>
+                          ❌ {addFpoError}
+                        </div>
+                      )}
+
+                      <div className="form-group">
+                        <label className="form-label">FPO Name *</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="e.g. Karad Farmer Producer Org"
+                          value={newFpo.name}
+                          onChange={e => setNewFpo({ ...newFpo, name: e.target.value })}
+                          required 
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">FPO Code (Unique Identifier) *</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="e.g. KARAD-FPO"
+                          value={newFpo.code}
+                          onChange={e => setNewFpo({ ...newFpo, code: e.target.value })}
+                          required 
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div className="form-group">
+                          <label className="form-label">Region</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="e.g. Satara"
+                            value={newFpo.region}
+                            onChange={e => setNewFpo({ ...newFpo, region: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">District</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="e.g. Satara"
+                            value={newFpo.district}
+                            onChange={e => setNewFpo({ ...newFpo, district: e.target.value })}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div className="form-group">
+                          <label className="form-label">Contact Phone</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="e.g. +912164223344"
+                            value={newFpo.contactPhone}
+                            onChange={e => setNewFpo({ ...newFpo, contactPhone: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Contact Email</label>
+                          <input 
+                            type="email" 
+                            className="form-input" 
+                            placeholder="e.g. info@karadfpo.in"
+                            value={newFpo.contactEmail}
+                            onChange={e => setNewFpo({ ...newFpo, contactEmail: e.target.value })}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Parent Aggregator Association (Optional)</label>
+                        <select 
+                          className="form-select"
+                          value={newFpo.aggregatorId}
+                          onChange={e => setNewFpo({ ...newFpo, aggregatorId: e.target.value })}
+                          style={{ background: '#fff' }}
+                        >
+                          <option value="">None / Independent FPO</option>
+                          {dbFpos.filter(f => !f.aggregator_id).map(agg => (
+                            <option key={agg.id} value={agg.id}>{agg.name} ({agg.code})</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="form-footer" style={{ borderTop: '1px solid rgba(0,0,0,0.08)', padding: '16px 24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                      <button type="button" className="btn btn-outline" onClick={() => setShowAddFpoModal(false)} disabled={addFpoLoading}>
+                        Cancel
+                      </button>
+                      <button type="submit" className="btn btn-primary" disabled={addFpoLoading} style={{ background: 'var(--green)', borderColor: 'var(--green)' }}>
+                        {addFpoLoading ? 'Registering...' : 'Register FPO'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {activeTab === 'payments' && (
-          <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <h2 className="section-title">Purchase Order Payments & Settlements</h2>
-            <div className="card">
-              <div className="table-responsive">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>PO Reference</th>
-                      <th>Escrow Bank</th>
-                      <th>Valuation</th>
-                      <th>Settlement Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {receipts.filter(r => r.collateralStatus !== 'None').map(r => (
-                      <tr key={r.id}>
-                        <td><strong>PO-2026-{r.id.split('-').pop()}</strong></td>
-                        <td>{r.pledgeBank || 'NABARD Escrow'}</td>
-                        <td>₹{r.value.toLocaleString()}</td>
-                        <td><span className="badge badge-green">Settled / Funded</span></td>
+        {activeTab === 'payments' && (() => {
+          // Filter payments list dynamically inside App.jsx
+          const filteredPayments = receipts.map(r => {
+            const isCollateral = r.collateralStatus !== 'None';
+            return {
+              id: r.id,
+              poRef: `PO-2026-${r.id.split('-').pop()}`,
+              bank: isCollateral ? (r.pledgeBank || 'NABARD Escrow') : 'None / Direct Cash',
+              value: r.value,
+              status: isCollateral ? 'Settled / Funded' : 'Direct Payout Pending',
+              statusClass: isCollateral ? 'badge-green' : 'badge-amber',
+              date: r.date,
+              dateRaw: r.dateRaw || r.issue_date
+            };
+          }).filter(p => {
+            if (payStatus !== 'All' && p.status !== payStatus) return false;
+            if (payBank !== 'All' && p.bank !== payBank) return false;
+            if (paySearch.trim() !== '') {
+              const q = paySearch.toLowerCase();
+              if (!p.poRef.toLowerCase().includes(q) && !p.bank.toLowerCase().includes(q)) return false;
+            }
+            if (p.dateRaw) {
+              const pDate = new Date(p.dateRaw);
+              if (payFromDate) {
+                const fromDate = new Date(payFromDate);
+                if (pDate < fromDate) return false;
+              }
+              if (payToDate) {
+                const toDate = new Date(payToDate);
+                toDate.setHours(23, 59, 59, 999);
+                if (pDate > toDate) return false;
+              }
+            }
+            return true;
+          });
+
+          return (
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div>
+                <h2 className="section-title">Purchase Order Payments & Settlements</h2>
+                <div style={{ color: 'var(--text3)', fontSize: '13px', marginTop: '4px' }}>
+                  Filter and track your settlements, payouts, and escrow bank distributions.
+                </div>
+              </div>
+
+              {/* Filters Top Panel */}
+              <div 
+                className="card" 
+                style={{ 
+                  padding: '16px 20px', 
+                  display: 'flex', 
+                  flexDirection: 'row',
+                  flexWrap: 'wrap', 
+                  gap: '16px', 
+                  alignItems: 'center',
+                  background: '#fff',
+                  border: '1px solid rgba(0, 0, 0, 0.08)'
+                }}
+              >
+                {/* Search query */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 200px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text2)', textTransform: 'uppercase' }}>Search PO / Bank</label>
+                  <input 
+                    type="text" 
+                    placeholder="Search reference..."
+                    value={paySearch}
+                    onChange={e => setPaySearch(e.target.value)}
+                    style={{
+                      padding: '6px 10px',
+                      fontSize: '13px',
+                      border: '1px solid rgba(0, 0, 0, 0.15)',
+                      borderRadius: '6px',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                {/* From Date */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '140px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text2)', textTransform: 'uppercase' }}>From Period</label>
+                  <input 
+                    type="date"
+                    value={payFromDate}
+                    onChange={e => setPayFromDate(e.target.value)}
+                    style={{
+                      padding: '5px 10px',
+                      fontSize: '13px',
+                      border: '1px solid rgba(0, 0, 0, 0.15)',
+                      borderRadius: '6px',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                {/* To Date */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '140px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text2)', textTransform: 'uppercase' }}>To Period</label>
+                  <input 
+                    type="date"
+                    value={payToDate}
+                    onChange={e => setPayToDate(e.target.value)}
+                    style={{
+                      padding: '5px 10px',
+                      fontSize: '13px',
+                      border: '1px solid rgba(0, 0, 0, 0.15)',
+                      borderRadius: '6px',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                {/* Settlement Status Dropdown */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '180px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text2)', textTransform: 'uppercase' }}>Settlement Status</label>
+                  <select 
+                    value={payStatus}
+                    onChange={e => setPayStatus(e.target.value)}
+                    className="form-select"
+                    style={{
+                      padding: '6px 10px',
+                      fontSize: '13px',
+                      border: '1px solid rgba(0, 0, 0, 0.15)',
+                      borderRadius: '6px',
+                      background: '#fff',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="All">All Statuses</option>
+                    <option value="Settled / Funded">Settled / Funded</option>
+                    <option value="Direct Payout Pending">Direct Payout Pending</option>
+                  </select>
+                </div>
+
+                {/* Escrow Bank Dropdown */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '180px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text2)', textTransform: 'uppercase' }}>Escrow Bank</label>
+                  <select 
+                    value={payBank}
+                    onChange={e => setPayBank(e.target.value)}
+                    className="form-select"
+                    style={{
+                      padding: '6px 10px',
+                      fontSize: '13px',
+                      border: '1px solid rgba(0, 0, 0, 0.15)',
+                      borderRadius: '6px',
+                      background: '#fff',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="All">All Banks</option>
+                    <option value="NABARD Escrow">NABARD Escrow</option>
+                    <option value="SBI Escrow">SBI Escrow</option>
+                    <option value="HDFC Escrow">HDFC Escrow</option>
+                    <option value="None / Direct Cash">None / Direct Cash</option>
+                  </select>
+                </div>
+
+                {/* Reset Filters button */}
+                <div style={{ display: 'flex', alignItems: 'flex-end', height: '100%', marginTop: '16px' }}>
+                  {(payFromDate || payToDate || payStatus !== 'All' || payBank !== 'All' || paySearch) && (
+                    <button 
+                      onClick={() => {
+                        setPayFromDate('');
+                        setPayToDate('');
+                        setPayStatus('All');
+                        setPayBank('All');
+                        setPaySearch('');
+                      }}
+                      className="btn btn-outline"
+                      style={{ fontSize: '12px', padding: '6px 12px', background: '#fff' }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Table Registry */}
+              <div className="card">
+                <div className="table-responsive">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>PO Reference</th>
+                        <th>Escrow Bank</th>
+                        <th>Settlement Date</th>
+                        <th>Valuation</th>
+                        <th>Settlement Status</th>
                       </tr>
-                    ))}
-                    {receipts.filter(r => r.collateralStatus === 'None').map(r => (
-                      <tr key={r.id}>
-                        <td><strong>PO-2026-{r.id.split('-').pop()}</strong></td>
-                        <td>None / Direct Cash</td>
-                        <td>₹{r.value.toLocaleString()}</td>
-                        <td><span className="badge badge-amber">Direct Payout Pending</span></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {filteredPayments.length === 0 ? (
+                        <tr>
+                          <td colSpan="5" style={{ textAlign: 'center', padding: '30px', color: 'var(--text3)' }}>
+                            No matching payment or settlement records found.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredPayments.map(p => (
+                          <tr key={p.id}>
+                            <td><strong>{p.poRef}</strong></td>
+                            <td>{p.bank}</td>
+                            <td>{p.date || 'N/A'}</td>
+                            <td style={{ fontWeight: '600' }}>₹{p.value.toLocaleString()}</td>
+                            <td>
+                              <span className={`badge ${p.statusClass}`}>{p.status}</span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </Layout>
 
       {/* Notifications / Alerts overlay popup */}

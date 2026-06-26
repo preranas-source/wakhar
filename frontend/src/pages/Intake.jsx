@@ -5,7 +5,8 @@ export default function Intake({
   intakes, 
   onAddIntake, 
   farmersList = [], 
-  language = 'en'
+  language = 'en',
+  dbWarehouses = []
 }) {
   const t = (key) => getTranslation(key, language);
 
@@ -23,7 +24,7 @@ export default function Intake({
 
   // Wizard States
   const [selectedFarmer, setSelectedFarmer] = useState(farmersList[0] || {});
-  const [warehouse, setWarehouse] = useState('Wai FPO Warehouse');
+  const [warehouse, setWarehouse] = useState('');
   const [commodity, setCommodity] = useState('Rice');
   const [variety, setVariety] = useState('');
   const [quantity, setQuantity] = useState(900);
@@ -32,6 +33,15 @@ export default function Intake({
   const [zone, setZone] = useState('Zone A — Rack 3');
   const [remarks, setRemarks] = useState('');
   const [farmGPS, setFarmGPS] = useState('17.9123, 73.8421');
+
+  // Initialize default warehouse
+  useEffect(() => {
+    if (dbWarehouses.length > 0 && !warehouse) {
+      setWarehouse(dbWarehouses[0].name);
+    }
+  }, [dbWarehouses, warehouse]);
+
+  const selectedWh = dbWarehouses.find(w => w.name === warehouse) || dbWarehouses[0];
 
   // Seed mock bookings
   const mockBookings = [
@@ -414,10 +424,17 @@ export default function Intake({
                   <div className="form-group">
                     <label className="form-label">Target Warehouse</label>
                     <select className="form-select" value={warehouse} onChange={(e) => setWarehouse(e.target.value)}>
-                      <option>Wai FPO Warehouse</option>
-                      <option>Phaltan FPO Warehouse</option>
-                      <option>Baramati FPO Warehouse</option>
+                      {dbWarehouses.map(w => (
+                        <option key={w.id} value={w.name}>{w.name}</option>
+                      ))}
                     </select>
+                    {selectedWh && (
+                      <div style={{ marginTop: '8px', padding: '8px', background: 'var(--surface2)', borderRadius: '6px', fontSize: '11.5px', border: '1px solid var(--border)' }}>
+                        <span style={{ display: 'block', fontWeight: '600', color: 'var(--text)', marginBottom: '2px' }}>📍 Warehouse Geofence parameters:</span>
+                        <span style={{ color: 'var(--blue)', display: 'block' }}>GPS Coordinates: Lat: {selectedWh.geo_lat}, Lng: {selectedWh.geo_lng}</span>
+                        <span style={{ color: 'var(--text2)', display: 'block', marginTop: '2px' }}>Address: {selectedWh.address || 'N/A'}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="form-group">
                     <label className="form-label">Commodity Type</label>

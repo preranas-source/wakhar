@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 
 export default function Receipts({ receipts, intakes = [], onApplyCollateral, searchQuery, role }) {
   const [filterTab, setFilterTab] = useState('Active');
@@ -435,7 +436,7 @@ export default function Receipts({ receipts, intakes = [], onApplyCollateral, se
                 type="button" 
                 className="btn btn-outline" 
                 onClick={() => {
-                  alert('Launching system print dialog...');
+                  toast.success('Launching system print dialog...');
                   window.print();
                 }}
               >
@@ -444,7 +445,7 @@ export default function Receipts({ receipts, intakes = [], onApplyCollateral, se
               <button 
                 type="button" 
                 className="btn btn-outline"
-                onClick={() => alert(`Simulating PDF compile for e-WR: ${viewingReceipt.id}... PDF file downloaded successfully.`)}
+                onClick={() => toast.success(`Simulating PDF compile for e-WR: ${viewingReceipt.id}... PDF file downloaded successfully.`)}
               >
                 📥 Download PDF
               </button>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { apiSim } from '@wakhar/shared';
+import toast from 'react-hot-toast';
 
 export default function FarmerPortal({ 
   intakes, 
@@ -38,7 +39,7 @@ export default function FarmerPortal({
     setExpectedOtp(code);
     setOtpSent(true);
     apiSim.sendSMSNotification(selectedFarmer.phone, `WAKHAR: Your withdrawal authorization secure OTP token is ${code}. Do not share this PIN.`);
-    alert(`Secure OTP token has been dispatched to ${selectedFarmer.phone}! [SIMULATION CODE: ${code}]`);
+    toast.success(`Secure OTP token has been dispatched to ${selectedFarmer.phone}! [SIMULATION CODE: ${code}]`);
   };
   
   // Withdrawal request logs
@@ -70,28 +71,28 @@ export default function FarmerPortal({
     const matchingWR = activeReceipts.find(wr => wr.commodity.toLowerCase().includes(withdrawCommodity.toLowerCase()));
     
     if (!matchingWR) {
-      alert(`No active negotiable Warehouse Receipt found for commodity: ${withdrawCommodity}`);
+      toast.error(`No active negotiable Warehouse Receipt found for commodity: ${withdrawCommodity}`);
       return;
     }
     
     const withdrawVal = Number(withdrawQuantity);
     if (withdrawVal <= 0) {
-      alert('Withdrawal quantity must be greater than 0.');
+      toast.success('Withdrawal quantity must be greater than 0.');
       return;
     }
     
     if (withdrawVal > matchingWR.quantity) {
-      alert(`Withdrawal quantity exceeds active receipt quantity (${matchingWR.quantity} kg).`);
+      toast.error(`Withdrawal quantity exceeds active receipt quantity (${matchingWR.quantity} kg).`);
       return;
     }
     
     if (!expectedOtp) {
-      alert('Security Verification Required: Please request a digital token OTP code first.');
+      toast.error('Security Verification Required: Please request a digital token OTP code first.');
       return;
     }
     
     if (digitalToken !== expectedOtp) {
-      alert('Security Verification Failed: The OTP token entered is incorrect. Please request a new token.');
+      toast.error('Security Verification Failed: The OTP token entered is incorrect. Please request a new token.');
       return;
     }
 
@@ -125,7 +126,7 @@ export default function FarmerPortal({
       );
     }
 
-    alert(`Successfully authorized withdrawal request of ${withdrawVal.toLocaleString()} kg. e-WR ${matchingWR.id} amended.`);
+    toast.success(`Successfully authorized withdrawal request of ${withdrawVal.toLocaleString()} kg. e-WR ${matchingWR.id} amended.`);
     setDigitalToken('');
     setWithdrawQuantity('300');
   };
@@ -168,7 +169,7 @@ export default function FarmerPortal({
               <button 
                 className="btn btn-outline" 
                 style={{ padding: '6px 12px', fontSize: '12px', background: '#fff' }}
-                onClick={() => alert('Exporting deposit ledger as CSV...')}
+                onClick={() => toast.success('Exporting deposit ledger as CSV...')}
               >
                 Export CSV
               </button>

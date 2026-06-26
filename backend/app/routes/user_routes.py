@@ -15,7 +15,8 @@ router = APIRouter(prefix="/api/users", tags=["Users"], dependencies=[Depends(ge
 def list_items(skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500), role: Optional[str] = None, fpo_id: Optional[int] = None, db: Session = Depends(get_db)):
     q = db.query(User)
     if role is not None:
-        q = q.filter(User.role == role)
+        from app.models.role import Role
+        q = q.filter(User.role_rel.has(Role.name == role))
     if fpo_id is not None:
         q = q.filter(User.fpo_id == fpo_id)
     return q.offset(skip).limit(limit).all()

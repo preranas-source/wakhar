@@ -58,33 +58,6 @@ export const apiSim = {
     });
   },
 
-  // 2. Fleetbase dispatch order
-  triggerFleetbaseDispatch: async (dispatch) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const endpoint = 'https://api.fleetbase.io/v1/orders';
-        const payload = {
-          type: 'dispatch',
-          payload: {
-            reference: dispatch.id,
-            vehicle_registration: dispatch.vehicle,
-            destination: dispatch.destination,
-            cargo: {
-              commodity: dispatch.commodity,
-              weight: dispatch.quantity
-            }
-          }
-        };
-        const response = {
-          status: 'success',
-          order_id: `order_${Math.random().toString(36).substr(2, 9)}`,
-          tracking_url: `https://trck.fb.io/${dispatch.id}`
-        };
-        logTransaction(endpoint, 'POST', payload, 200, response);
-        resolve(response);
-      }, 1000);
-    });
-  },
 
   // 3. Traccar position pull
   fetchTraccarPositions: async (vehicleId) => {

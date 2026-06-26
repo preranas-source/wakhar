@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { apiSim } from '@wakhar/shared';
 import MapTracker from '../components/MapTracker';
+import toast from 'react-hot-toast';
 
 export default function Dispatch({ 
   dispatches, 
@@ -12,12 +14,109 @@ export default function Dispatch({
 }) {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedLotId, setSelectedLotId] = useState('');
-  const [destination, setDestination] = useState('Satara Aggregator');
+  const [destination, setDestination] = useState('');
+  const [destLat, setDestLat] = useState('18.5204');
+  const [destLng, setDestLng] = useState('73.8567');
   
-  // New dispatch vehicle and route selections
-  const [vehicleSelection, setVehicleSelection] = useState('MH-11-AB-4421');
-  const [customVehicleNo, setCustomVehicleNo] = useState('');
-  const [routeSelection, setRouteSelection] = useState('NH-48 Wai Satara Expressway');
+  // Prevent background page scrolling when modal is open
+  useEffect(() => {
+    if (isFormOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isFormOpen]);
+  
+  // Leaflet map initialization for destination
+  useEffect(() => {
+    if (!isFormOpen) return;
+
+    let mapInstance = null;
+
+    const startMapInit = () => {
+      setTimeout(() => {
+        const mapDiv = document.getElementById('dispatch-dest-map');
+        if (!mapDiv || !window.L) return;
+
+        const L = window.L;
+        const initialLat = parseFloat(destLat);
+        const initialLng = parseFloat(destLng);
+
+        delete L.Icon.Default.prototype._getIconUrl;
+        L.Icon.Default.mergeOptions({
+          iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+          iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+          shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        });
+
+        const map = L.map('dispatch-dest-map').setView([initialLat, initialLng], 10);
+        mapInstance = map;
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        const marker = L.marker([initialLat, initialLng], { draggable: true }).addTo(map);
+
+        const updateCoordsAndAddress = async (lat, lng) => {
+          setDestLat(lat.toFixed(6));
+          setDestLng(lng.toFixed(6));
+          try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`, {
+              headers: { 'User-Agent': 'WakharWMS/1.0' }
+            });
+            if (response.ok) {
+              const data = await response.json();
+              if (data && data.display_name) {
+                setDestination(data.display_name);
+              }
+            }
+          } catch (err) {
+            console.error('Nominatim reverse lookup error:', err);
+          }
+        };
+
+        map.on('click', (e) => {
+          const { lat, lng } = e.latlng;
+          marker.setLatLng([lat, lng]);
+          updateCoordsAndAddress(lat, lng);
+        });
+
+        marker.on('dragend', () => {
+          const { lat, lng } = marker.getLatLng();
+          updateCoordsAndAddress(lat, lng);
+        });
+
+      }, 200);
+    };
+
+    let link = document.querySelector('link[href*="leaflet.css"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    let script = document.querySelector('script[src*="leaflet.js"]');
+    if (!script) {
+      script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = startMapInit;
+      document.head.appendChild(script);
+    } else {
+      startMapInit();
+    }
+
+    return () => {
+      if (mapInstance) {
+        mapInstance.remove();
+      }
+    };
+  }, [isFormOpen]);
   
   const [selectedDispatch, setSelectedDispatch] = useState(dispatches[0] || null);
 
@@ -36,7 +135,7 @@ export default function Dispatch({
     
     // Log to integrations console via SMS notification simulation
     apiSim.sendSMSNotification('+91 98765 43210', `Weighbridge gate-out certified for dispatch ${dispatch.id}. Weight: 12.4 MT.`);
-    alert(`Weighbridge certified for ${dispatch.id}! Status is now "In Transit".`);
+    toast.success(`Weighbridge certified for ${dispatch.id}! Status is now "In Transit".`);
   };
 
   const handleGenerateEWayBill = (dispatch) => {
@@ -51,7 +150,7 @@ export default function Dispatch({
     
     // Log to integrations console
     apiSim.sendSMSNotification('+91 98765 43210', `e-Way Bill EWB-90182739182 generated for vehicle ${dispatch.vehicle}.`);
-    alert(`e-Way Bill generated successfully for ${dispatch.id}!`);
+    toast.success(`e-Way Bill generated successfully for ${dispatch.id}!`);
   };
 
   const handleConfirmEPOD = (dispatch) => {
@@ -65,7 +164,7 @@ export default function Dispatch({
     
     // Log to integrations console
     apiSim.sendSMSNotification('+91 98765 43210', `Delivery confirmed for ${dispatch.id}. e-POD signature uploaded.`);
-    alert(`Delivery confirmed and e-POD signature verified for ${dispatch.id}!`);
+    toast.success(`Delivery confirmed and e-POD signature verified for ${dispatch.id}!`);
   };
 
   // Pre-registered vehicle roster
@@ -85,13 +184,10 @@ export default function Dispatch({
 
   const handleCreateDispatch = (e) => {
     e.preventDefault();
-    if (!selectedLotId) return alert('Please select an available lot to dispatch.');
-    
-    const finalVehicle = vehicleSelection === 'custom' ? customVehicleNo : vehicleSelection;
-    if (!finalVehicle.trim()) return alert('Please enter a vehicle registration number.');
+    if (!selectedLotId) return toast.error('Please select an available lot to dispatch.');
+    if (!destination) return toast.error('Please enter or select a destination on the map.');
 
     const lot = intakes.find(l => l.id === selectedLotId);
-    const selectedRouteObj = routeRoster.find(r => r.name.startsWith(routeSelection)) || routeRoster[0];
 
     const newDispatch = {
       id: `DN-00${83 + dispatches.length}`,
@@ -99,13 +195,15 @@ export default function Dispatch({
       commodity: `${lot.commodity} (${lot.variety})`,
       quantity: `${lot.quantity / 1000} MT`,
       destination: destination,
-      vehicle: finalVehicle,
-      status: 'Scheduled',
-      route: selectedRouteObj.name,
+      destinationLat: parseFloat(destLat),
+      destinationLng: parseFloat(destLng),
+      vehicle: 'Pending Assignment',
+      status: 'Pending Assignment',
+      route: 'Pending Assignment',
       timeline: [
-        { title: 'Dispatch Note Authorized', sub: `Via ${selectedRouteObj.name.split(' (')[0]}`, done: true },
-        { title: 'Weigh Bridge Clearance', sub: 'Pending gate-out weight checks', active: true },
-        { title: 'E-way Bill Generation', sub: 'Pending RTO synchronization', active: false },
+        { title: 'Transport Request Sent', sub: `Waiting for Agri Fleet vehicle assignment`, done: true },
+        { title: 'Vehicle Assigned', sub: 'Pending Agri Fleet assignment', active: true },
+        { title: 'Weigh Bridge Clearance', sub: 'Pending gate-out weight checks', active: false },
         { title: 'Delivery e-POD Uploaded', sub: 'Awaiting digital signing', active: false }
       ]
     };
@@ -113,7 +211,6 @@ export default function Dispatch({
     onAddDispatch(newDispatch, lot.id);
     setIsFormOpen(false);
     setSelectedLotId('');
-    setCustomVehicleNo('');
     setSelectedDispatch(newDispatch);
   };
 
@@ -321,89 +418,66 @@ export default function Dispatch({
       </div>
 
       {/* Create Dispatch Modal */}
-      {isFormOpen && (
-        <div className="modal-overlay">
-          <div className="modal-container" style={{ maxWidth: '480px' }}>
+      {isFormOpen && createPortal(
+        <div className="modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="modal-container" style={{ maxWidth: '640px', width: '90%', position: 'relative', maxHeight: '85vh', overflowY: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div className="modal-header">
               <div className="modal-title">Create Outbound Dispatch pass</div>
               <button className="modal-close" onClick={() => setIsFormOpen(false)}>×</button>
             </div>
-            <form onSubmit={handleCreateDispatch}>
-              <div className="form-grid" style={{ gridTemplateColumns: '1fr', gap: '14px' }}>
-                <div className="form-group">
-                  <label className="form-label">Available Inventory Lot</label>
-                  <select 
-                    className="form-select" 
-                    value={selectedLotId}
-                    onChange={(e) => setSelectedLotId(e.target.value)}
-                    required
-                  >
-                    <option value="">-- Select Available Lot --</option>
-                    {availableLots.map(lot => (
-                      <option key={lot.id} value={lot.id}>
-                        {lot.id} - {lot.commodity} ({lot.variety}) - {lot.quantity}kg available
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div className="form-group">
-                  <label className="form-label">Destination Hub</label>
-                  <select 
-                    className="form-select" 
-                    value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
-                  >
-                    <option value="Satara Aggregator Hub">Satara Aggregator Hub</option>
-                    <option value="Phaltan Aggregator Center">Phaltan Aggregator Center</option>
-                    <option value="Baramati Processing Facility">Baramati Processing Facility</option>
-                    <option value="Mumbai Wholesale Market (Raigad Mart)">Mumbai Wholesale Market (Raigad Mart)</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Fleet Vehicle Selection</label>
-                  <select 
-                    className="form-select" 
-                    value={vehicleSelection}
-                    onChange={(e) => setVehicleSelection(e.target.value)}
-                  >
-                    {vehicleRoster.map(veh => (
-                      <option key={veh.plate} value={veh.plate}>{veh.desc}</option>
-                    ))}
-                    <option value="custom">-- Custom Vehicle Number --</option>
-                  </select>
-                </div>
-
-                {vehicleSelection === 'custom' && (
+            <form onSubmit={handleCreateDispatch} style={{ display: 'flex', flexDirection: 'column', maxHeight: 'calc(85vh - 65px)', overflow: 'hidden' }}>
+              <div style={{ overflowY: 'auto', flex: 1 }}>
+                <div className="form-grid" style={{ gridTemplateColumns: '1fr', gap: '14px', padding: '24px' }}>
                   <div className="form-group">
-                    <label className="form-label">Type Custom Vehicle Plate *</label>
-                    <input 
-                      className="form-input" 
-                      type="text" 
-                      value={customVehicleNo}
-                      onChange={(e) => setCustomVehicleNo(e.target.value)}
-                      placeholder="e.g. MH-11-AB-1234"
+                    <label className="form-label">Available Inventory Lot</label>
+                    <select 
+                      className="form-select" 
+                      value={selectedLotId}
+                      onChange={(e) => setSelectedLotId(e.target.value)}
                       required
-                    />
+                    >
+                      <option value="">-- Select Available Lot --</option>
+                      {availableLots.map(lot => (
+                        <option key={lot.id} value={lot.id}>
+                          {lot.id} - {lot.commodity} ({lot.variety}) - {lot.quantity}kg available
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                )}
+                  
+                  <div className="form-group">
+                    <label className="form-label">Destination Location *</label>
+                    <div style={{ fontSize: '11px', color: 'var(--text3)', marginBottom: '8px' }}>
+                      Click on the map or drag the marker to pinpoint the exact destination for Agri Fleet routing.
+                    </div>
+                    <div id="dispatch-dest-map" style={{ height: '300px', width: '100%', borderRadius: '8px', border: '1px solid var(--border)' }}></div>
+                  </div>
 
-                <div className="form-group">
-                  <label className="form-label">Route Selection & Details</label>
-                  <select 
-                    className="form-select" 
-                    value={routeSelection}
-                    onChange={(e) => setRouteSelection(e.target.value)}
-                  >
-                    {routeRoster.map(route => (
-                      <option key={route.id} value={route.name}>{route.name}</option>
-                    ))}
-                  </select>
+                  <div className="form-group">
+                    <label className="form-label">Destination Address / Name</label>
+                    <textarea 
+                      className="form-input" 
+                      value={destination}
+                      onChange={(e) => setDestination(e.target.value)}
+                      rows="2"
+                      required
+                    ></textarea>
+                  </div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="form-group">
+                      <label className="form-label">Destination Latitude</label>
+                      <input type="text" className="form-input" value={destLat} readOnly style={{ background: 'var(--surface2)' }} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Destination Longitude</label>
+                      <input type="text" className="form-input" value={destLng} readOnly style={{ background: 'var(--surface2)' }} />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="form-footer" style={{ marginTop: '20px' }}>
+              <div className="form-footer" style={{ marginTop: '0' }}>
                 <button type="button" className="btn btn-outline" onClick={() => setIsFormOpen(false)}>
                   Cancel
                 </button>
@@ -413,7 +487,8 @@ export default function Dispatch({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

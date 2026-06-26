@@ -59,7 +59,7 @@ def update_item(item_id: int, data: WarehouseReceiptCreate, db: Session = Depend
     if data.version is not None and data.version != item.version:
         raise HTTPException(status_code=409, detail="Conflict: record has been modified by another user. Please refresh and try again.")
         
-    if current_user.role.value == "farmer":
+    if current_user.role and current_user.role.name == "farmer":
         # Ensure the farmer owns the receipt
         if not current_user.farmer_profile or item.farmer_id != current_user.farmer_profile.id:
             raise HTTPException(
