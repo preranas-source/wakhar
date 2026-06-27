@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from app.dependencies import get_current_user, RoleChecker
+from app.dependencies import get_current_user, RoleChecker, PermissionChecker
 from app.models.user import User
 from app.utils.auth import hash_password
 from app.database import get_db
@@ -29,7 +29,7 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
     return item
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def create_item(data: UserCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager']))):
+def create_item(data: UserCreate, db: Session = Depends(get_db), current_user: User = Depends(PermissionChecker("users", "can_add"))):
     hashed_pwd = hash_password(data.password_hash)
     item_data = data.model_dump()
     item_data["password_hash"] = hashed_pwd
@@ -40,7 +40,7 @@ def create_item(data: UserCreate, db: Session = Depends(get_db), current_user: U
     return item
 
 @router.put("/{item_id}", response_model=UserResponse)
-def update_item(item_id: int, data: UserCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager']))):
+def update_item(item_id: int, data: UserCreate, db: Session = Depends(get_db), current_user: User = Depends(PermissionChecker("users", "can_edit"))):
     item = db.query(User).filter(User.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
@@ -54,7 +54,7 @@ def update_item(item_id: int, data: UserCreate, db: Session = Depends(get_db), c
     return item
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_item(item_id: int, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager']))):
+def delete_item(item_id: int, db: Session = Depends(get_db), current_user: User = Depends(PermissionChecker("users", "can_delete"))):
     item = db.query(User).filter(User.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Not found")

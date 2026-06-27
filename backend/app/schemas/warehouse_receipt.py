@@ -16,6 +16,7 @@ class WarehouseReceiptBase(BaseModel):
     loan_amount: float = 0.0
     status: str = "active"
     enam_submitted: bool = False
+    version: Optional[int] = None
 
 class WarehouseReceiptCreate(WarehouseReceiptBase):
     pass

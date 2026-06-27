@@ -31,6 +31,23 @@ export default function Grading({
 
   // Enrich intake lot database with mock visual parameters matching the mockup screenshots
   const getQualityParams = (lot) => {
+    // 1. Prioritize actual database quality records if present
+    if (lot.qualityRecords && lot.qualityRecords.length > 0) {
+      const latestQc = lot.qualityRecords[lot.qualityRecords.length - 1];
+      const qcDate = latestQc.inspection_date ? new Date(latestQc.inspection_date) : null;
+      const formattedDate = qcDate ? qcDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'Today';
+      
+      return {
+        fm: `${latestQc.foreign_matter_pct || 0}%`,
+        bg: `${latestQc.broken_grain_pct || 0}%`,
+        protein: `${latestQc.protein_pct || 0}%`,
+        inspector: latestQc.inspector_name || 'Govt Lab Officer',
+        date: formattedDate,
+        certStatus: lot.grade === 'Rejected' ? 'N/A' : 'Download'
+      };
+    }
+
+    // 2. Mock visual parameters for pre-seeded walkthrough data
     if (lot.id === 'LOT-2026-091') {
       return { fm: '0.8%', bg: '1.2%', protein: '12.4%', inspector: 'Inspectorate Ltd.', date: '30 May', certStatus: 'Download' };
     }
@@ -44,15 +61,14 @@ export default function Grading({
       return { fm: '5.2%', bg: '8.0%', protein: '7.8%', inspector: 'FPO Staff', date: '28 May', certStatus: 'N/A' };
     }
 
-    // Default calculations for newly certified dynamic lots
-    const isHighMoisture = lot.moisture > 14;
+    // 3. Ungraded/unevaluated lot default parameters
     return {
-      fm: isHighMoisture ? '2.8%' : '0.6%',
-      bg: isHighMoisture ? '4.8%' : '1.4%',
-      protein: isHighMoisture ? '9.8%' : '11.5%',
-      inspector: 'FPO Lab Tech',
-      date: lot.date || 'Today',
-      certStatus: lot.status === 'QC Pending' ? 'Pending' : (lot.grade === 'Rejected' ? 'N/A' : 'Download')
+      fm: '—',
+      bg: '—',
+      protein: '—',
+      inspector: '—',
+      date: '—',
+      certStatus: 'Pending'
     };
   };
 
@@ -128,7 +144,7 @@ export default function Grading({
       }
     }
 
-    onUpdateGrade(newLotId, computedGrade, gradeClass, moistVal, status);
+    onUpdateGrade(newLotId, computedGrade, gradeClass, moistVal, status, fmVal, proteinVal, Number(newBrokenGrains), newInspector);
     
     // Select the newly graded lot
     if (computedGrade === 'Rejected') {

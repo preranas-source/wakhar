@@ -39,6 +39,15 @@ class User(Base, TimestampMixin):
         """
         return self.role_rel
 
+    @property
+    def fpo_name(self):
+        """Returns the name of the FPO or Aggregator the user is associated with."""
+        if self.fpo:
+            return self.fpo.name
+        if self.farmer_profile and self.farmer_profile.fpo:
+            return self.farmer_profile.fpo.name
+        return None
+
     def __repr__(self):
         role_name = self.role_rel.name if self.role_rel else "unassigned"
         return f"<User {self.id}: {self.full_name} ({role_name})>"

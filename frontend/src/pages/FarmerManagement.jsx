@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { getTranslation } from '@wakhar/shared';
 import toast from 'react-hot-toast';
 import farmerService from '../services/farmerService';
@@ -22,6 +23,7 @@ export default function FarmerManagement({
   const [village, setVillage] = useState('');
   const [bankAccount, setBankAccount] = useState('');
   const [bankIfsc, setBankIfsc] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Scoped farmers (Staff only sees their FPO farmers, Admin sees all)
@@ -48,6 +50,7 @@ export default function FarmerManagement({
     setVillage('');
     setBankAccount('');
     setBankIfsc('');
+    setPassword('');
     setIsModalOpen(true);
   };
 
@@ -59,6 +62,7 @@ export default function FarmerManagement({
     setVillage(farmer.village || '');
     setBankAccount(farmer.bank_account || '');
     setBankIfsc(farmer.bank_ifsc || '');
+    setPassword('');
     setIsModalOpen(true);
   };
 
@@ -80,7 +84,8 @@ export default function FarmerManagement({
         bank_ifsc: bankIfsc.trim() || null,
         fpo_id: myFpoId || 1, // Fallback to 1 if admin creates
         farmer_code: editingFarmer?.farmer_code || `FM-${Math.floor(10000 + Math.random() * 90000)}`,
-        total_deposit_kg: editingFarmer?.total_deposit_kg || 0
+        total_deposit_kg: editingFarmer?.total_deposit_kg || 0,
+        password: password.trim() || null
       };
 
       if (editingFarmer) {
@@ -218,7 +223,7 @@ export default function FarmerManagement({
       </div>
 
       {/* Register/Edit Modal Overlay */}
-      {isModalOpen && (
+      {isModalOpen && createPortal(
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
             <div className="modal-header">
@@ -267,6 +272,18 @@ export default function FarmerManagement({
                 </div>
 
                 <div className="form-group">
+                  <label className="form-label">{editingFarmer ? 'Change Password / PIN' : 'Password / PIN *'}</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder={editingFarmer ? 'Leave blank to keep existing' : 'e.g. 123456'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required={!editingFarmer}
+                  />
+                </div>
+
+                <div className="form-group">
                   <label className="form-label">Aadhaar National ID Number</label>
                   <input
                     type="text"
@@ -312,7 +329,7 @@ export default function FarmerManagement({
             </form>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }

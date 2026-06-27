@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime, timezone
 
-from app.dependencies import get_current_user, RoleChecker
+from app.dependencies import get_current_user, RoleChecker, PermissionChecker
 from app.models.user import User
 from app.database import get_db
 from app.models import DispatchNote, DispatchTimelineEvent, CommodityLot, Warehouse, StockMovement
@@ -30,11 +30,29 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
 import uuid
 
 @router.post("/", response_model=DispatchNoteResponse, status_code=status.HTTP_201_CREATED)
-def create_item(request: Request, data: DispatchNoteCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff', 'aggregator']))):
+def create_item(request: Request, data: DispatchNoteCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(PermissionChecker("dispatch", "can_add"))):
     key = get_idempotency_key(request)
     existing = check_idempotency(key, db)
     if existing:
         return existing
+
+    # Auto-increment unique dn_code if client-submitted code already exists
+    dn_code = data.dn_code
+    while True:
+        existing_dn = db.query(DispatchNote).filter(DispatchNote.dn_code == dn_code).first()
+        if not existing_dn:
+            break
+        max_dn = db.query(DispatchNote).filter(DispatchNote.dn_code.like("DN-%")).order_by(DispatchNote.dn_code.desc()).first()
+        if max_dn:
+            try:
+                num_str = max_dn.dn_code.split("-")[-1]
+                num = int(num_str)
+                dn_code = f"DN-{num + 1:04d}"
+            except Exception:
+                dn_code = f"DN-{uuid.uuid4().hex[:4].upper()}"
+        else:
+            dn_code = f"DN-{uuid.uuid4().hex[:4].upper()}"
+    data.dn_code = dn_code
 
     # Fetch original lot with row-level lock
     original_lot = db.query(CommodityLot).with_for_update().filter(CommodityLot.id == data.lot_id).first()
@@ -113,7 +131,7 @@ def create_item(request: Request, data: DispatchNoteCreate, background_tasks: Ba
     return dispatch_note
 
 @router.put("/{item_id}", response_model=DispatchNoteResponse)
-def update_item(item_id: int, data: DispatchNoteCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff', 'aggregator']))):
+def update_item(item_id: int, data: DispatchNoteCreate, db: Session = Depends(get_db), current_user: User = Depends(PermissionChecker("dispatch", "can_edit"))):
     item = db.query(DispatchNote).filter(DispatchNote.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
@@ -132,7 +150,7 @@ def get_timeline(item_id: int, db: Session = Depends(get_db)):
     return events
 
 @router.post("/{item_id}/timeline", response_model=DispatchTimelineEventResponse, status_code=status.HTTP_201_CREATED)
-def add_timeline_event(item_id: int, data: DispatchTimelineEventCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff', 'aggregator']))):
+def add_timeline_event(item_id: int, data: DispatchTimelineEventCreate, db: Session = Depends(get_db), current_user: User = Depends(PermissionChecker("dispatch", "can_delete"))):
     if data.dispatch_note_id != item_id:
         raise HTTPException(status_code=400, detail="Path id and body dispatch_note_id mismatch")
     event = DispatchTimelineEvent(**data.model_dump())

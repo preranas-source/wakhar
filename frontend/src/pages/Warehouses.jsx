@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { getTranslation } from '@wakhar/shared';
 import warehouseService from '../services/warehouseService';
 import toast from 'react-hot-toast';
@@ -9,7 +10,8 @@ export default function Warehouses({
   dbWarehouses = [],
   dbFarmers = [],
   dbFpos = [],
-  onRefreshData
+  onRefreshData,
+  role
 }) {
   const t = (key) => getTranslation(key, language);
 
@@ -30,6 +32,91 @@ export default function Warehouses({
   const [newWhHours, setNewWhHours] = useState('09:00 AM - 06:00 PM');
   const [newWhContact, setNewWhContact] = useState('+91 98765 43210');
   const [newWhPermittedCrops, setNewWhPermittedCrops] = useState(['Rice', 'Wheat', 'Soybean']);
+
+  // Edit Warehouse states
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingWhId, setEditingWhId] = useState(null);
+
+  const handleEditClick = (wh) => {
+    setEditingWhId(wh.id);
+    setNewWhName(wh.name);
+    setNewWhLocation(wh.location);
+    setNewWhCapacity(wh.capacity.toString());
+    setNewWhStock(wh.stock.toString());
+    setNewWhType(wh.type === 'Aggregator-level' ? 'Aggregator-level' : (wh.type === 'Cold storage' ? 'Cold storage' : 'FPO-level'));
+    setNewWhZones(wh.zones);
+    setNewWhFpoId(wh.fpo_id || dbFpos[0]?.id || '');
+    setNewWhGeoLat(wh.geoLat);
+    setNewWhGeoLng(wh.geoLng);
+    setNewWhHours(wh.hours);
+    setNewWhContact(wh.contact);
+    setNewWhPermittedCrops(wh.permittedCrops);
+    setIsEditModalOpen(true);
+    setSelectedWh(null); // Close detail modal
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!newWhName.trim() || !newWhLocation.trim()) {
+      toast.error('Please fill out all required fields.');
+      return;
+    }
+
+    const typeMapping = {
+      'FPO-level': 'fpo',
+      'Aggregator-level': 'aggregator',
+      'Cold storage': 'cold_storage'
+    };
+
+    try {
+      const payload = {
+        name: newWhName,
+        code: `WH-${newWhName.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5)}-${Math.floor(Math.random() * 900 + 100)}`,
+        type: typeMapping[newWhType] || 'fpo',
+        fpo_id: Number(newWhFpoId) || dbFpos[0]?.id || 1,
+        geo_lat: parseFloat(newWhGeoLat),
+        geo_lng: parseFloat(newWhGeoLng),
+        capacity_mt: parseFloat(newWhCapacity) || 0,
+        current_stock_mt: parseFloat(newWhStock) || 0,
+        address: newWhLocation,
+        contact_person: 'FPO Representative',
+        contact_phone: newWhContact,
+        operating_hours: newWhHours,
+        permitted_commodities: newWhPermittedCrops.join(','),
+        is_active: true
+      };
+
+      await warehouseService.updateWarehouse(editingWhId, payload);
+      toast.success(`Warehouse "${newWhName}" updated successfully!`);
+      
+      if (onRefreshData) {
+        await onRefreshData();
+      }
+
+      setIsEditModalOpen(false);
+      setEditingWhId(null);
+    } catch (err) {
+      console.error('Failed to update warehouse:', err);
+      toast.error('Failed to update warehouse on the backend.');
+    }
+  };
+
+  const handleDeleteWarehouse = async (id, name) => {
+    if (!window.confirm(`Are you sure you want to delete warehouse "${name}"?`)) return;
+    try {
+      await warehouseService.deleteWarehouse(id);
+      toast.success(`Warehouse "${name}" deleted successfully.`);
+      if (onRefreshData) await onRefreshData();
+      setSelectedWh(null);
+    } catch (err) {
+      console.error(err);
+      if (err.response && err.response.data && err.response.data.detail) {
+        toast.error(err.response.data.detail);
+      } else {
+        toast.error("Failed to delete warehouse.");
+      }
+    }
+  };
 
   // Set default FPO ID when dbFpos is available
   useEffect(() => {
@@ -61,8 +148,16 @@ export default function Warehouses({
           shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
         });
 
-        const map = L.map('register-wh-map').setView([initialLat, initialLng], 10);
+        const map = L.map('register-wh-map', { keyboard: false }).setView([initialLat, initialLng], 10);
         mapInstance = map;
+
+        // Reset scroll position of modal elements to counteract Leaflet focus-shift
+        setTimeout(() => {
+          const scrollContainers = document.querySelectorAll('.modal-container, .modal-overlay, .card-body');
+          scrollContainers.forEach(el => {
+            el.scrollTop = 0;
+          });
+        }, 50);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '© OpenStreetMap'
@@ -329,10 +424,179 @@ export default function Warehouses({
         </div>
       </div>
 
+      {/* EDIT MODAL */}
+      {isEditModalOpen && createPortal(
+        <div className="modal-overlay" onClick={() => { setIsEditModalOpen(false); setEditingWhId(null); }}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '540px', width: '90%' }}>
+            <div className="modal-header">
+              <div className="modal-title">Edit Warehouse Center</div>
+              <button className="modal-close" onClick={() => { setIsEditModalOpen(false); setEditingWhId(null); }}>×</button>
+            </div>
+            <form onSubmit={handleEditSubmit}>
+              <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div className="form-group">
+                  <label className="form-label">Warehouse Name *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={newWhName}
+                    onChange={(e) => setNewWhName(e.target.value)}
+                    required
+                  />
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Warehouse Type *</label>
+                    <select className="form-select" value={newWhType} onChange={(e) => setNewWhType(e.target.value)}>
+                      <option value="FPO-level">FPO-level Warehouse</option>
+                      <option value="Aggregator-level">Aggregator Consolidation Center</option>
+                      <option value="Cold storage">Cold Storage Facility</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Assigned FPO/Region *</label>
+                    <select
+                      className="form-select"
+                      value={newWhFpoId}
+                      onChange={(e) => setNewWhFpoId(e.target.value)}
+                      required
+                    >
+                      {dbFpos.map(fpo => (
+                        <option key={fpo.id} value={fpo.id}>{fpo.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Location / Address *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={newWhLocation}
+                    onChange={(e) => setNewWhLocation(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Total Capacity (MT) *</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={newWhCapacity}
+                      onChange={(e) => setNewWhCapacity(e.target.value)}
+                      min="10"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Base Stock (MT) *</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={newWhStock}
+                      onChange={(e) => setNewWhStock(e.target.value)}
+                      min="0"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Geo Latitude coordinates *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={newWhGeoLat}
+                      onChange={(e) => setNewWhGeoLat(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Geo Longitude coordinates *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={newWhGeoLng}
+                      onChange={(e) => setNewWhGeoLng(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Operating Hours *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={newWhHours}
+                      onChange={(e) => setNewWhHours(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Contact Phone / Contacts *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={newWhContact}
+                      onChange={(e) => setNewWhContact(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Warehouse Zones, Racks, Bins Description *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={newWhZones}
+                    onChange={(e) => setNewWhZones(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Permitted Commodity Categories</label>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '6px' }}>
+                    {['Rice', 'Wheat', 'Soybean', 'Onion', 'Groundnut'].map(crop => (
+                      <label key={crop} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={newWhPermittedCrops.includes(crop)}
+                          onChange={() => handleCropCheckboxChange(crop)}
+                          style={{ width: '16px', height: '16px' }}
+                        />
+                        <span>{t(crop)}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="form-footer" style={{ borderTop: '1px solid var(--border)', marginTop: '10px', paddingTop: '14px' }}>
+                <button type="button" className="btn btn-outline" onClick={() => { setIsEditModalOpen(false); setEditingWhId(null); }}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      , document.body)}
+
       {/* REGISTRATION MODAL */}
-      {isModalOpen && (
+      {isModalOpen && createPortal(
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '540px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '540px', width: '90%' }}>
             <div className="modal-header">
               <div className="modal-title">Register New Warehouse Center</div>
               <button className="modal-close" onClick={() => setIsModalOpen(false)}>×</button>
@@ -508,10 +772,10 @@ export default function Warehouses({
             </form>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* DETAIL MODAL DRAWER */}
-      {selectedWh && (
+      {selectedWh && createPortal(
         <div className="modal-overlay" onClick={() => setSelectedWh(null)}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '580px', width: '90%' }}>
             <div className="modal-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
@@ -593,22 +857,44 @@ export default function Warehouses({
 
             </div>
 
-            <div className="form-footer" style={{ borderTop: '1px solid var(--border)' }}>
-              <button 
-                type="button" 
-                className="btn btn-outline" 
-                style={{ background: '#fff' }}
-                onClick={() => toast.success(`Synchronizing geofence bounds with Traccar API for ${selectedWh.name}...`)}
-              >
-                🛰️ Sync Traccar Geofence
-              </button>
-              <button className="btn btn-primary" onClick={() => setSelectedWh(null)}>
-                Close Detail
-              </button>
+            <div className="form-footer" style={{ borderTop: '1px solid var(--border)', justifyContent: 'space-between', width: '100%', display: 'flex' }}>
+              {role === 'admin' && (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-outline" 
+                    style={{ background: '#fff', borderColor: 'var(--amber)', color: 'var(--amber)' }}
+                    onClick={() => handleEditClick(selectedWh)}
+                  >
+                    ✏️ Edit
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-outline" 
+                    style={{ background: '#fff', borderColor: 'var(--red)', color: 'var(--red)' }}
+                    onClick={() => handleDeleteWarehouse(selectedWh.id, selectedWh.name)}
+                  >
+                    🗑️ Delete
+                  </button>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-outline" 
+                  style={{ background: '#fff' }}
+                  onClick={() => toast.success(`Synchronizing geofence bounds with Traccar API for ${selectedWh.name}...`)}
+                >
+                  🛰️ Sync Traccar Geofence
+                </button>
+                <button className="btn btn-primary" onClick={() => setSelectedWh(null)}>
+                  Close Detail
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }

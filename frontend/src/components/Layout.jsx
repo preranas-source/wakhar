@@ -98,8 +98,7 @@ export default function Layout({
             items: [
               { id: 'farmer', label: 'Farmer Registration', icon: icons.farmer },
               { id: 'intake', label: 'Intake Form', icon: icons.intake },
-              { id: 'grading', label: 'QC Inspection', icon: icons.grading },
-              { id: 'scanner', label: 'Scanner', icon: icons.stockcount }
+              { id: 'grading', label: 'QC Inspection', icon: icons.grading }
             ]
           }
         ];

@@ -17,24 +17,62 @@ def get_dashboard_stats(db: Session = Depends(get_db), current_user: User = Depe
     q_warehouses = db.query(Warehouse)
     q_activities = db.query(ActivityLog)
     
-    if current_user.fpo_id:
-        # Filter lots by warehouses belonging to the FPO
-        warehouse_ids = [w.id for w in db.query(Warehouse.id).filter(Warehouse.fpo_id == current_user.fpo_id).all()]
-        if warehouse_ids:
-            q_lots = q_lots.filter(CommodityLot.warehouse_id.in_(warehouse_ids))
-        else:
-            q_lots = q_lots.filter(False) # No warehouses = no lots
+    role_name = current_user.role_rel.name if current_user.role_rel else "unassigned"
+    
+    if role_name == "admin":
+        pass  # admin sees all globally
         
-        q_farmers = q_farmers.filter(Farmer.fpo_id == current_user.fpo_id)
-        q_warehouses = q_warehouses.filter(Warehouse.fpo_id == current_user.fpo_id)
-        
-        # We could filter activities by user_id belonging to this FPO, or reference.
-        # For simplicity, let's just get all activities or activities related to this FPO's users.
-        user_ids = [u.id for u in db.query(User.id).filter(User.fpo_id == current_user.fpo_id).all()]
-        if user_ids:
-            q_activities = q_activities.filter(ActivityLog.user_id.in_(user_ids))
+    elif role_name == "aggregator":
+        aggregator_fpo_id = current_user.fpo_id
+        if aggregator_fpo_id:
+            from app.models import FPO
+            child_ids = [f.id for f in db.query(FPO.id).filter(FPO.aggregator_id == aggregator_fpo_id).all()]
+            allowed_fpo_ids = [aggregator_fpo_id] + child_ids
+            
+            q_lots = q_lots.filter(CommodityLot.warehouse.has(Warehouse.fpo_id.in_(allowed_fpo_ids)))
+            q_farmers = q_farmers.filter(Farmer.fpo_id.in_(allowed_fpo_ids))
+            q_warehouses = q_warehouses.filter(Warehouse.fpo_id.in_(allowed_fpo_ids))
+            
+            user_ids = [u.id for u in db.query(User.id).filter(User.fpo_id.in_(allowed_fpo_ids)).all()]
+            if user_ids:
+                q_activities = q_activities.filter(ActivityLog.user_id.in_(user_ids))
+            else:
+                q_activities = q_activities.filter(ActivityLog.user_id == current_user.id)
         else:
+            q_lots = q_lots.filter(False)
+            q_farmers = q_farmers.filter(False)
+            q_warehouses = q_warehouses.filter(False)
+            q_activities = q_activities.filter(False)
+            
+    elif role_name in ("fpo_manager", "fpo_staff"):
+        user_fpo_id = current_user.fpo_id
+        if user_fpo_id:
+            q_lots = q_lots.filter(CommodityLot.warehouse.has(Warehouse.fpo_id == user_fpo_id))
+            q_farmers = q_farmers.filter(Farmer.fpo_id == user_fpo_id)
+            q_warehouses = q_warehouses.filter(Warehouse.fpo_id == user_fpo_id)
+            
+            user_ids = [u.id for u in db.query(User.id).filter(User.fpo_id == user_fpo_id).all()]
+            if user_ids:
+                q_activities = q_activities.filter(ActivityLog.user_id.in_(user_ids))
+            else:
+                q_activities = q_activities.filter(ActivityLog.user_id == current_user.id)
+        else:
+            q_lots = q_lots.filter(False)
+            q_farmers = q_farmers.filter(False)
+            q_warehouses = q_warehouses.filter(False)
+            q_activities = q_activities.filter(False)
+            
+    elif role_name == "farmer":
+        if current_user.farmer_profile:
+            q_lots = q_lots.filter(CommodityLot.farmer_id == current_user.farmer_profile.id)
+            q_farmers = q_farmers.filter(Farmer.id == current_user.farmer_profile.id)
+            q_warehouses = q_warehouses.filter(Warehouse.fpo_id == current_user.farmer_profile.fpo_id)
             q_activities = q_activities.filter(ActivityLog.user_id == current_user.id)
+        else:
+            q_lots = q_lots.filter(False)
+            q_farmers = q_farmers.filter(False)
+            q_warehouses = q_warehouses.filter(False)
+            q_activities = q_activities.filter(False)
 
     total_lots = q_lots.count()
     total_farmers = q_farmers.count()

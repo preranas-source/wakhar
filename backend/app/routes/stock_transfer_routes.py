@@ -4,7 +4,7 @@ from typing import List, Optional
 from datetime import datetime, timezone
 import uuid
 
-from app.dependencies import get_current_user, RoleChecker
+from app.dependencies import get_current_user, RoleChecker, PermissionChecker
 from app.models.user import User
 from app.database import get_db
 from app.models import StockTransfer, CommodityLot, Warehouse, StockMovement
@@ -27,7 +27,7 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
     return item
 
 @router.post("/", response_model=StockTransferResponse, status_code=status.HTTP_201_CREATED)
-def create_item(request: Request, data: StockTransferCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff', 'aggregator']))):
+def create_item(request: Request, data: StockTransferCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(PermissionChecker("inventory", "can_add"))):
     key = get_idempotency_key(request)
     existing = check_idempotency(key, db)
     if existing:
@@ -110,7 +110,7 @@ def create_item(request: Request, data: StockTransferCreate, background_tasks: B
     return stock_transfer
 
 @router.post("/{item_id}/reconcile", response_model=StockTransferResponse)
-def reconcile_grn(item_id: int, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff', 'aggregator']))):
+def reconcile_grn(item_id: int, db: Session = Depends(get_db), current_user: User = Depends(PermissionChecker("inventory", "can_edit"))):
     transfer = db.query(StockTransfer).filter(StockTransfer.id == item_id).first()
     if not transfer:
         raise HTTPException(status_code=404, detail="Transfer not found")

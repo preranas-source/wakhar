@@ -46,5 +46,9 @@ class QualityRecord(Base):
     lot = relationship("CommodityLot", back_populates="quality_records")
     inspector = relationship("User", back_populates="quality_inspections")
 
+    @property
+    def inspector_name(self):
+        return self.inspector.full_name if self.inspector else "Govt Lab Officer"
+
     def __repr__(self):
         return f"<QualityRecord {self.qc_code}: {self.grade_awarded.value}>"

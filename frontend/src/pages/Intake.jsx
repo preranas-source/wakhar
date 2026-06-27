@@ -24,6 +24,7 @@ export default function Intake({
 
   // Wizard States
   const [selectedFarmer, setSelectedFarmer] = useState(farmersList[0] || {});
+  const [farmerSearch, setFarmerSearch] = useState('');
   const [warehouse, setWarehouse] = useState('');
   const [commodity, setCommodity] = useState('Rice');
   const [variety, setVariety] = useState('');
@@ -42,6 +43,12 @@ export default function Intake({
   }, [dbWarehouses, warehouse]);
 
   const selectedWh = dbWarehouses.find(w => w.name === warehouse) || dbWarehouses[0];
+
+  useEffect(() => {
+    if (selectedWh) {
+      setFarmGPS(`${selectedWh.geo_lat || '17.9123'}, ${selectedWh.geo_lng || '73.8421'}`);
+    }
+  }, [selectedWh]);
 
   // Seed mock bookings
   const mockBookings = [
@@ -70,8 +77,7 @@ export default function Intake({
   const getAutoGrade = () => {
     const moist = Number(moisture);
     if (moist > 20) return { name: 'Rejected', class: 'badge-red', status: 'Returned' };
-    if (moist > 14) return { name: 'Grade B', class: 'badge-amber', status: 'QC Pending' };
-    return { name: 'Grade A', class: 'badge-green', status: 'Available' };
+    return { name: 'QC Pending', class: 'badge-gray', status: 'QC Pending' };
   };
 
   const handleStartWizard = () => {
@@ -80,6 +86,7 @@ export default function Intake({
     setIntakeMode('walk-in');
     setSelectedBookingId('');
     setSelectedFarmer(farmersList[0] || {});
+    setFarmerSearch('');
     setCommodity('Rice');
     setVariety('');
     setQuantity(900);
@@ -386,17 +393,53 @@ export default function Intake({
                   ) : (
                     <div className="form-group full">
                       <label className="form-label">Registered Farmer</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="🔍 Search farmer by name, code, phone or village..." 
+                        value={farmerSearch}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setFarmerSearch(val);
+                          const matches = farmersList.filter(f => 
+                            f.name?.toLowerCase().includes(val.toLowerCase()) ||
+                            f.id?.toString().toLowerCase().includes(val.toLowerCase()) ||
+                            f.farmerCode?.toLowerCase().includes(val.toLowerCase()) ||
+                            f.phone?.toLowerCase().includes(val.toLowerCase()) ||
+                            f.village?.toLowerCase().includes(val.toLowerCase())
+                          );
+                          if (matches.length > 0 && !matches.some(m => m.id === selectedFarmer.id)) {
+                            setSelectedFarmer(matches[0]);
+                          }
+                        }}
+                        style={{ marginBottom: '8px' }}
+                      />
                       <select 
                         className="form-select"
-                        value={selectedFarmer.id}
+                        value={selectedFarmer.id || ''}
                         onChange={(e) => {
                           const farm = farmersList.find(f => f.id === e.target.value);
                           setSelectedFarmer(farm || {});
                         }}
                       >
-                        {farmersList.map(f => (
+                        {farmersList.filter(f => 
+                          f.name?.toLowerCase().includes(farmerSearch.toLowerCase()) ||
+                          f.id?.toString().toLowerCase().includes(farmerSearch.toLowerCase()) ||
+                          f.farmerCode?.toLowerCase().includes(farmerSearch.toLowerCase()) ||
+                          f.phone?.toLowerCase().includes(farmerSearch.toLowerCase()) ||
+                          f.village?.toLowerCase().includes(farmerSearch.toLowerCase())
+                        ).map(f => (
                           <option key={f.id} value={f.id}>{f.name} ({f.id}) - {f.village}</option>
                         ))}
+                        {farmersList.filter(f => 
+                          f.name?.toLowerCase().includes(farmerSearch.toLowerCase()) ||
+                          f.id?.toString().toLowerCase().includes(farmerSearch.toLowerCase()) ||
+                          f.farmerCode?.toLowerCase().includes(farmerSearch.toLowerCase()) ||
+                          f.phone?.toLowerCase().includes(farmerSearch.toLowerCase()) ||
+                          f.village?.toLowerCase().includes(farmerSearch.toLowerCase())
+                        ).length === 0 && (
+                          <option value="">No matching farmers found</option>
+                        )}
                       </select>
                     </div>
                   )}
@@ -485,15 +528,7 @@ export default function Intake({
                       <option>Zone C — Rack 2</option>
                     </select>
                   </div>
-                  <div className="form-group full">
-                    <label className="form-label">Farm Source Geo-coordinates (GPS for tracking)</label>
-                    <input 
-                      className="form-input" 
-                      placeholder="e.g. 17.9123, 73.8421" 
-                      value={farmGPS}
-                      onChange={(e) => setFarmGPS(e.target.value)}
-                    />
-                  </div>
+
                 </div>
               </>
             )}

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, date
 
 class CommodityLotBase(BaseModel):
@@ -19,6 +19,8 @@ class CommodityLotBase(BaseModel):
     source_gps_lng: Optional[float] = None
     remarks: Optional[str] = None
     intake_date: date
+    client_timestamp: Optional[datetime] = None
+    version: Optional[int] = None
 
 class CommodityLotCreate(CommodityLotBase):
     pass
@@ -26,6 +28,7 @@ class CommodityLotCreate(CommodityLotBase):
 from .farmer import FarmerResponse
 from .commodity import CommodityResponse
 from .warehouse import WarehouseResponse
+from .quality_record import QualityRecordResponse
 
 class CommodityLotResponse(CommodityLotBase):
     id: int
@@ -34,4 +37,5 @@ class CommodityLotResponse(CommodityLotBase):
     farmer: Optional[FarmerResponse] = None
     commodity: Optional[CommodityResponse] = None
     warehouse: Optional[WarehouseResponse] = None
+    quality_records: List[QualityRecordResponse] = []
     model_config = ConfigDict(from_attributes=True)

@@ -179,18 +179,26 @@ export default function Transfers({ intakes = [], warehouses = [], onAddActivity
                 <div className="form-group">
                   <label className="form-label">Source FPO Warehouse</label>
                   <select className="form-select" value={sourceWarehouseId} onChange={(e) => setSourceWarehouseId(e.target.value)}>
+                    <option value="">-- Choose Source --</option>
                     {fpoWarehouses.map(wh => (
                       <option key={wh.id} value={wh.id}>{wh.name}</option>
                     ))}
+                    {fpoWarehouses.length === 0 && (
+                      <option disabled>No source FPO warehouse found.</option>
+                    )}
                   </select>
                 </div>
 
                 <div className="form-group">
                   <label className="form-label">Destination Aggregator</label>
                   <select className="form-select" value={destinationWarehouseId} onChange={(e) => setDestinationWarehouseId(e.target.value)}>
+                    <option value="">-- Choose Destination --</option>
                     {aggregatorWarehouses.map(wh => (
                       <option key={wh.id} value={wh.id}>{wh.name}</option>
                     ))}
+                    {aggregatorWarehouses.length === 0 && (
+                      <option disabled>No aggregator hub found. Please register one first!</option>
+                    )}
                   </select>
                 </div>
 
@@ -312,7 +320,7 @@ export default function Transfers({ intakes = [], warehouses = [], onAddActivity
         <div className="card" style={{ marginTop: '10px' }}>
           <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div className="section-title">GRN Verification & Verification — {activeTransfer.trf_code}</div>
+              <div className="section-title">GRN Verification — {activeTransfer.trf_code}</div>
               <div className="section-sub" style={{ marginTop: '4px' }}>
                 Receiving Center · {getWarehouseName(activeTransfer.destination_warehouse_id)}
               </div>

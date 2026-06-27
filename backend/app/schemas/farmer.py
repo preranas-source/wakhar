@@ -15,7 +15,7 @@ class FarmerBase(BaseModel):
     user_id: Optional[int] = None
 
 class FarmerCreate(FarmerBase):
-    pass
+    password: Optional[str] = None
 
 class FarmerResponse(FarmerBase):
     id: int

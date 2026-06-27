@@ -6,15 +6,48 @@ export default function FarmerPortal({
   intakes, 
   receipts, 
   farmersList = [], 
+  dbFarmers = [],
+  dbFpos = [],
+  dbWarehouses = [],
+  dbMovements = [],
+  dbUsers = [],
+  currentUser,
   onAmendReceipt, 
   onAddActivity,
   activeTab = 'farmer'
 }) {
-  // 1. Selected farmer (default to Suresh Patil for simulation)
-  const [selectedFarmer] = useState({
+  // 1. Find the logged-in farmer in dbFarmers by user_id or phone number
+  const dbFarmer = dbFarmers.find(f => {
+    if (f.user_id && currentUser?.id && f.user_id === currentUser.id) {
+      return true;
+    }
+    const normF = (f.phone || '').replace(/\D/g, '');
+    const normU = (currentUser?.phone || '').replace(/\D/g, '');
+    return normF === normU && normF !== '';
+  });
+  
+  // Find their FPO and FPO manager
+  const myFpo = dbFpos.find(f => f.id === dbFarmer?.fpo_id);
+  const myFpoManager = dbUsers.find(u => u.fpo_id === dbFarmer?.fpo_id && u.role === 'fpo_manager');
+
+  const selectedFarmer = dbFarmer ? {
+    id: dbFarmer.farmer_code,
+    dbId: dbFarmer.id,
+    name: dbFarmer.name,
+    phone: dbFarmer.phone,
+    aadhaar: dbFarmer.aadhaar || 'Not Listed',
+    village: dbFarmer.village || 'N/A',
+    bankName: 'State Bank of India', // Default bank name
+    bankAcc: dbFarmer.bank_account || 'Not Linked',
+    bankIfsc: dbFarmer.bank_ifsc || 'N/A',
+    bankBranch: 'Wai APMC Branch',
+    linkedFpo: myFpo?.name || 'Linked FPO Center',
+    fpoContact: myFpoManager ? `${myFpoManager.full_name} (${myFpoManager.phone})` : 'N/A',
+    fpoCoordinates: '17.9462° N, 73.8821° E'
+  } : {
     id: 'FM-00412',
-    name: 'Suresh Patil',
-    phone: '+91 98765 43210',
+    name: currentUser?.full_name || 'Suresh Patil',
+    phone: currentUser?.phone || '+91 98765 43210',
     aadhaar: '4532-8901-4821',
     village: 'Wai',
     bankName: 'State Bank of India',
@@ -24,7 +57,7 @@ export default function FarmerPortal({
     linkedFpo: 'Wai Farmer Producer Org',
     fpoContact: 'Rajesh Bhosale (+91 98210 55660)',
     fpoCoordinates: '17.9462° N, 73.8821° E'
-  });
+  };
 
   // 2. Withdrawal form state
   const [withdrawCommodity, setWithdrawCommodity] = useState('Rice');
@@ -42,12 +75,6 @@ export default function FarmerPortal({
     toast.success(`Secure OTP token has been dispatched to ${selectedFarmer.phone}! [SIMULATION CODE: ${code}]`);
   };
   
-  // Withdrawal request logs
-  const [withdrawalRequests, setWithdrawalRequests] = useState([
-    { id: 'WRQ-2026-004', commodity: 'Wheat', quantity: 400, reason: 'Processing & milling', status: 'Approved', date: '04 Jun 2026' },
-    { id: 'WRQ-2026-001', commodity: 'Soybean', quantity: 600, reason: 'Sale to trader', status: 'Completed', date: '28 May 2026' }
-  ]);
-
   // Filter receipts and intakes for the active farmer
   const currentReceipts = receipts.filter(wr => wr.farmerId === selectedFarmer.id);
   const currentIntakes = intakes.filter(lot => lot.farmerId === selectedFarmer.id);
@@ -57,11 +84,29 @@ export default function FarmerPortal({
   const outstandingBalance = activeReceipts.reduce((sum, wr) => sum + Number(wr.quantity || 0), 0);
   const totalDepositedKg = currentIntakes.reduce((sum, lot) => sum + Number(lot.quantity || 0), 0);
 
-  const displayAadhaar = selectedFarmer.aadhaar 
+  // Dynamic withdrawal requests logs computed from actual stock movements
+  const myLotIds = new Set(currentIntakes.map(lot => lot.dbId));
+  const withdrawalRequests = (dbMovements || [])
+    .filter(m => myLotIds.has(m.lot_id) && m.remarks && m.remarks.toLowerCase().includes('withdrawal'))
+    .map((m, index) => {
+      const lot = currentIntakes.find(l => l.dbId === m.lot_id);
+      return {
+        id: m.movement_code || `WRQ-2026-0${100 + index}`,
+        date: m.movement_date ? new Date(m.movement_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A',
+        commodity: lot ? lot.commodity : 'Unknown',
+        quantity: parseFloat(m.quantity_kg),
+        reason: m.remarks || 'Farmer Withdrawal',
+        status: 'Completed'
+      };
+    });
+
+  const displayAadhaar = selectedFarmer.aadhaar && selectedFarmer.aadhaar !== 'Not Listed'
     ? 'XXXX-XXXX-' + selectedFarmer.aadhaar.slice(-4) 
-    : 'XXXX-XXXX-4821';
+    : 'Not Listed';
   
-  const displayBank = selectedFarmer.bankName + ' ···· ' + selectedFarmer.bankAcc.slice(-4);
+  const displayBank = selectedFarmer.bankAcc && selectedFarmer.bankAcc !== 'Not Linked'
+    ? 'Bank Account ···· ' + selectedFarmer.bankAcc.slice(-4)
+    : 'Not Linked';
 
   // Submit withdrawal request
   const handleWithdrawSubmit = (e) => {
@@ -105,18 +150,7 @@ export default function FarmerPortal({
     // Call amendment callback
     onAmendReceipt(matchingWR.id, newQty, newBags, newVal);
 
-    // Add to withdrawal log
-    const logDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const newRequest = {
-      id: `WRQ-2026-0${100 + withdrawalRequests.length}`,
-      commodity: withdrawCommodity,
-      quantity: withdrawVal,
-      reason: withdrawReason,
-      status: 'Approved',
-      date: logDate
-    };
-
-    setWithdrawalRequests(prev => [newRequest, ...prev]);
+    // No local state update needed, backend updates the quantities
 
     // Push dynamic activity log
     if (onAddActivity) {

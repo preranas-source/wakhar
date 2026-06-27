@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from app.dependencies import get_current_user, RoleChecker
+from app.dependencies import get_current_user, RoleChecker, PermissionChecker
 from app.models.user import User
 from app.database import get_db
 from app.models import QualityRecord
@@ -25,7 +25,7 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
     return item
 
 @router.post("/", response_model=QualityRecordResponse, status_code=status.HTTP_201_CREATED)
-def create_item(data: QualityRecordCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff']))):
+def create_item(data: QualityRecordCreate, db: Session = Depends(get_db), current_user: User = Depends(PermissionChecker("intake", "can_add"))):
     item = QualityRecord(**data.model_dump(exclude={'client_timestamp'}))
     if data.client_timestamp:
         item.inspection_date = data.client_timestamp
@@ -35,7 +35,7 @@ def create_item(data: QualityRecordCreate, db: Session = Depends(get_db), curren
     return item
 
 @router.put("/{item_id}", response_model=QualityRecordResponse)
-def update_item(item_id: int, data: QualityRecordCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff']))):
+def update_item(item_id: int, data: QualityRecordCreate, db: Session = Depends(get_db), current_user: User = Depends(PermissionChecker("intake", "can_edit"))):
     item = db.query(QualityRecord).filter(QualityRecord.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
@@ -46,7 +46,7 @@ def update_item(item_id: int, data: QualityRecordCreate, db: Session = Depends(g
     return item
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_item(item_id: int, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'fpo_staff']))):
+def delete_item(item_id: int, db: Session = Depends(get_db), current_user: User = Depends(PermissionChecker("intake", "can_delete"))):
     item = db.query(QualityRecord).filter(QualityRecord.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Not found")

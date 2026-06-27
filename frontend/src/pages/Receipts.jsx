@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 
-export default function Receipts({ receipts, intakes = [], onApplyCollateral, searchQuery, role }) {
+export default function Receipts({ receipts, intakes = [], onApplyCollateral, searchQuery, role, currentFarmerCode }) {
   const [filterTab, setFilterTab] = useState('Active');
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   
@@ -45,7 +45,7 @@ export default function Receipts({ receipts, intakes = [], onApplyCollateral, se
   // Filter logic
   const filteredReceipts = receipts.filter(wr => {
     // 1. Role-based scoping: Farmer only sees their own receipts
-    if (role === 'farmer' && wr.farmerId !== 'FM-00412') {
+    if (role === 'farmer' && wr.farmerId !== currentFarmerCode) {
       return false;
     }
 

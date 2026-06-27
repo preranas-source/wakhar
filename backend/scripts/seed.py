@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 from app.routes.auth import get_password_hash
 from app.models import (
-    Base, User, UserRole, FPO, Warehouse, WarehouseType,
+    Base, User, Role, Permission, FPO, Warehouse, WarehouseType,
     Farmer, Commodity, CommodityLot, GradeEnum, LotStatus,
     IntakeType, QualityRecord, QCGrade, WarehouseReceipt,
     CollateralStatus, WRStatus, StockMovement, MovementType,
@@ -24,6 +24,93 @@ DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://wakhar:wakhar123@local
 
 engine = create_engine(DATABASE_URL, echo=False)
 
+# Module slugs used for seeding default permissions
+MODULE_SLUGS = [
+    "dashboard", "intake", "inventory", "warehouse_receipts",
+    "dispatch", "market", "farmers", "users", "warehouses",
+    "reports", "settings",
+]
+
+# Default roles matching the old UserRole enum
+DEFAULT_ROLES = [
+    {"name": "admin", "description": "System administrator with full access", "is_superadmin": True},
+    {"name": "farmer", "description": "Farmer user", "is_superadmin": False},
+    {"name": "fpo_staff", "description": "FPO Staff member", "is_superadmin": False},
+    {"name": "fpo_manager", "description": "FPO Manager", "is_superadmin": False},
+    {"name": "aggregator", "description": "Aggregator / collection point", "is_superadmin": False},
+    {"name": "market_partner", "description": "Market partner / buyer", "is_superadmin": False},
+]
+
+# Permission presets per role
+ROLE_PERMISSIONS = {
+    "admin": {slug: (True, True, True, True) for slug in MODULE_SLUGS},
+    "fpo_manager": {
+        "dashboard": (True, False, False, False),
+        "intake": (True, True, True, True),
+        "inventory": (True, True, True, True),
+        "warehouse_receipts": (True, True, True, True),
+        "dispatch": (True, True, True, True),
+        "market": (True, True, True, False),
+        "farmers": (True, True, True, False),
+        "users": (True, True, True, False),
+        "warehouses": (True, True, True, False),
+        "reports": (True, False, False, False),
+        "settings": (True, True, True, False),
+    },
+    "fpo_staff": {
+        "dashboard": (True, False, False, False),
+        "intake": (True, True, True, False),
+        "inventory": (True, False, False, False),
+        "warehouse_receipts": (True, True, True, False),
+        "dispatch": (True, True, True, False),
+        "market": (True, False, False, False),
+        "farmers": (True, True, True, False),
+        "users": (False, False, False, False),
+        "warehouses": (True, False, False, False),
+        "reports": (True, False, False, False),
+        "settings": (False, False, False, False),
+    },
+    "farmer": {
+        "dashboard": (True, False, False, False),
+        "intake": (False, False, False, False),
+        "inventory": (False, False, False, False),
+        "warehouse_receipts": (True, False, False, False),
+        "dispatch": (False, False, False, False),
+        "market": (True, False, False, False),
+        "farmers": (False, False, False, False),
+        "users": (False, False, False, False),
+        "warehouses": (False, False, False, False),
+        "reports": (False, False, False, False),
+        "settings": (False, False, False, False),
+    },
+    "aggregator": {
+        "dashboard": (True, False, False, False),
+        "intake": (True, True, False, False),
+        "inventory": (True, False, False, False),
+        "warehouse_receipts": (True, False, False, False),
+        "dispatch": (True, True, False, False),
+        "market": (True, False, False, False),
+        "farmers": (True, False, False, False),
+        "users": (False, False, False, False),
+        "warehouses": (True, False, False, False),
+        "reports": (True, False, False, False),
+        "settings": (False, False, False, False),
+    },
+    "market_partner": {
+        "dashboard": (True, False, False, False),
+        "intake": (False, False, False, False),
+        "inventory": (True, False, False, False),
+        "warehouse_receipts": (True, False, False, False),
+        "dispatch": (True, False, False, False),
+        "market": (True, True, True, False),
+        "farmers": (False, False, False, False),
+        "users": (False, False, False, False),
+        "warehouses": (False, False, False, False),
+        "reports": (True, False, False, False),
+        "settings": (False, False, False, False),
+    },
+}
+
 
 def seed():
     print("🧹 Dropping all tables...")
@@ -32,6 +119,33 @@ def seed():
     Base.metadata.create_all(engine)
 
     with Session(engine) as session:
+
+        # ──────────────────────────────────────────
+        # 0. Roles & Permissions
+        # ──────────────────────────────────────────
+        role_map = {}
+        for r_def in DEFAULT_ROLES:
+            role_obj = Role(
+                name=r_def["name"],
+                description=r_def["description"],
+                is_superadmin=r_def["is_superadmin"]
+            )
+            session.add(role_obj)
+            session.flush()
+            role_map[r_def["name"]] = role_obj
+
+            perms = ROLE_PERMISSIONS.get(r_def["name"], {})
+            for slug, (cv, ca, ce, cd) in perms.items():
+                p_obj = Permission(
+                    role_id=role_obj.id,
+                    module_slug=slug,
+                    can_view=cv,
+                    can_add=ca,
+                    can_edit=ce,
+                    can_delete=cd
+                )
+                session.add(p_obj)
+        session.flush()
 
         # ──────────────────────────────────────────
         # 1. FPOs
@@ -67,32 +181,32 @@ def seed():
         user_manager = User(
             email="rajesh@wakhar.in", phone="+919876500001",
             password_hash=pwd_hash, full_name="Rajesh Bhosale",
-            role=UserRole.fpo_manager, initials="RB", fpo_id=fpo_wai.id,
+            role_id=role_map["fpo_manager"].id, initials="RB", fpo_id=fpo_wai.id,
         )
         user_admin = User(
             email="admin@wakhar.in", phone="+919876500000",
             password_hash=pwd_hash, full_name="System Admin",
-            role=UserRole.admin, initials="SA",
+            role_id=role_map["admin"].id, initials="SA",
         )
         user_staff = User(
             email="staff@wakhar.in", phone="+919876500002",
             password_hash=pwd_hash, full_name="Anil Gaikwad",
-            role=UserRole.fpo_staff, initials="AG", fpo_id=fpo_wai.id,
+            role_id=role_map["fpo_staff"].id, initials="AG", fpo_id=fpo_wai.id,
         )
         user_agg = User(
             email="agg@wakhar.in", phone="+919876500003",
             password_hash=pwd_hash, full_name="Mahesh Kulkarni",
-            role=UserRole.aggregator, initials="MK", fpo_id=fpo_aggregator.id,
+            role_id=role_map["aggregator"].id, initials="MK", fpo_id=fpo_aggregator.id,
         )
         user_market = User(
             email="buyer@raigadmart.in", phone="+919876500004",
             password_hash=pwd_hash, full_name="Raigad Mart Buyer",
-            role=UserRole.market_partner, initials="RM",
+            role_id=role_map["market_partner"].id, initials="RM",
         )
         user_farmer = User(
             email="suresh@wakhar.in", phone="+919876543210",
             password_hash=pwd_hash, full_name="Suresh Patil",
-            role=UserRole.farmer, initials="SP",
+            role_id=role_map["farmer"].id, initials="SP",
         )
         session.add_all([user_manager, user_admin, user_staff, user_agg, user_market, user_farmer])
         session.flush()

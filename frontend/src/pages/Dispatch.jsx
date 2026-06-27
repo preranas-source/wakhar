@@ -120,6 +120,20 @@ export default function Dispatch({
   
   const [selectedDispatch, setSelectedDispatch] = useState(dispatches[0] || null);
 
+  // Keep selectedDispatch in sync when dispatches changes or is loaded
+  useEffect(() => {
+    if (dispatches && dispatches.length > 0) {
+      if (selectedDispatch) {
+        const updated = dispatches.find(d => d.id === selectedDispatch.id);
+        if (updated) {
+          setSelectedDispatch(updated);
+          return;
+        }
+      }
+      setSelectedDispatch(dispatches[0]);
+    }
+  }, [dispatches]);
+
   const availableLots = intakes.filter(lot => lot.status === 'Available');
 
   // Timeline Action Simulations

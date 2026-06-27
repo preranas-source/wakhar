@@ -18,8 +18,13 @@ class UserCreate(UserBase):
     password_hash: str
 
 
+class UserUpdate(UserBase):
+    password_hash: Optional[str] = None
+
+
 class UserResponse(UserBase):
     id: int
+    fpo_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)

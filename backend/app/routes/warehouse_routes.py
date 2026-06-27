@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 
-from app.dependencies import get_current_user, RoleChecker
+from app.dependencies import get_current_user, RoleChecker, PermissionChecker
 from app.models.user import User
 from app.database import get_db
 from app.models import Warehouse, CommodityLot
@@ -12,10 +12,55 @@ from app.schemas.warehouse import WarehouseCreate, WarehouseResponse
 router = APIRouter(prefix="/api/warehouses", tags=["Warehouses"], dependencies=[Depends(get_current_user)])
 
 @router.get("/", response_model=List[WarehouseResponse])
-def list_items(skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500), fpo_id: Optional[int] = None, db: Session = Depends(get_db)):
+def list_items(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    fpo_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     q = db.query(Warehouse)
-    if fpo_id is not None:
-        q = q.filter(Warehouse.fpo_id == fpo_id)
+    
+    role_name = current_user.role_rel.name if current_user.role_rel else "unassigned"
+    
+    if role_name == "admin":
+        if fpo_id is not None:
+            q = q.filter(Warehouse.fpo_id == fpo_id)
+            
+    elif role_name == "aggregator":
+        aggregator_fpo_id = current_user.fpo_id
+        if aggregator_fpo_id:
+            from app.models import FPO
+            child_ids = [f.id for f in db.query(FPO.id).filter(FPO.aggregator_id == aggregator_fpo_id).all()]
+            allowed_fpo_ids = [aggregator_fpo_id] + child_ids
+            if fpo_id is not None:
+                if fpo_id in allowed_fpo_ids:
+                    q = q.filter(Warehouse.fpo_id == fpo_id)
+                else:
+                    return []
+            else:
+                q = q.filter(Warehouse.fpo_id.in_(allowed_fpo_ids))
+        else:
+            return []
+            
+    elif role_name in ("fpo_manager", "fpo_staff"):
+        user_fpo_id = current_user.fpo_id
+        if user_fpo_id:
+            q = q.filter(Warehouse.fpo_id == user_fpo_id)
+        else:
+            return []
+            
+    elif role_name == "farmer":
+        if current_user.farmer_profile:
+            q = q.filter(Warehouse.fpo_id == current_user.farmer_profile.fpo_id)
+        else:
+            return []
+            
+    else:
+        # Market Partner / other external roles can see all warehouses to view marketplace/inventory
+        if fpo_id is not None:
+            q = q.filter(Warehouse.fpo_id == fpo_id)
+            
     warehouses = q.offset(skip).limit(limit).all()
     for w in warehouses:
         total_kg = db.query(func.sum(CommodityLot.quantity_kg)).filter(
@@ -38,7 +83,7 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
     return item
 
 @router.post("/", response_model=WarehouseResponse, status_code=status.HTTP_201_CREATED)
-def create_item(data: WarehouseCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'aggregator']))):
+def create_item(data: WarehouseCreate, db: Session = Depends(get_db), current_user: User = Depends(PermissionChecker("warehouses", "can_add"))):
     item = Warehouse(**data.model_dump())
     db.add(item)
     db.commit()
@@ -46,7 +91,7 @@ def create_item(data: WarehouseCreate, db: Session = Depends(get_db), current_us
     return item
 
 @router.put("/{item_id}", response_model=WarehouseResponse)
-def update_item(item_id: int, data: WarehouseCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'aggregator']))):
+def update_item(item_id: int, data: WarehouseCreate, db: Session = Depends(get_db), current_user: User = Depends(PermissionChecker("warehouses", "can_edit"))):
     item = db.query(Warehouse).filter(Warehouse.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
@@ -57,7 +102,7 @@ def update_item(item_id: int, data: WarehouseCreate, db: Session = Depends(get_d
     return item
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_item(item_id: int, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(['admin', 'fpo_manager', 'aggregator']))):
+def delete_item(item_id: int, db: Session = Depends(get_db), current_user: User = Depends(PermissionChecker("warehouses", "can_delete"))):
     item = db.query(Warehouse).filter(Warehouse.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Not found")

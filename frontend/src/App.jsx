@@ -31,6 +31,7 @@ import qualityService from './services/qualityService';
 import purchaseOrderService from './services/purchaseOrderService';
 import './App.css';
 import FarmerManagement from './pages/FarmerManagement';
+import stockMovementService from './services/stockMovementService';
 
 export default function App({ roleKey: propRoleKey }) {
   const params = useParams();
@@ -88,6 +89,7 @@ export default function App({ roleKey: propRoleKey }) {
   const [dbUsers, setDbUsers] = useState([]);
   const [dbFpos, setDbFpos] = useState([]);
   const [pos, setPos] = useState([]);
+  const [dbMovements, setDbMovements] = useState([]);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Payments filtering states
@@ -109,6 +111,36 @@ export default function App({ roleKey: propRoleKey }) {
   });
   const [addUserError, setAddUserError] = useState('');
   const [addUserLoading, setAddUserLoading] = useState(false);
+
+  // Edit User Form states
+  const [showEditUserModal, setShowEditUserModal] = useState(false);
+  const [editUser, setEditUser] = useState({
+    id: null,
+    fullName: '',
+    phone: '',
+    email: '',
+    roleId: '3',
+    fpoId: '1',
+    password: '',
+    isActive: true
+  });
+  const [editUserError, setEditUserError] = useState('');
+  const [editUserLoading, setEditUserLoading] = useState(false);
+
+  // Edit FPO Form states
+  const [showEditFpoModal, setShowEditFpoModal] = useState(false);
+  const [editFpo, setEditFpo] = useState({
+    id: null,
+    name: '',
+    code: '',
+    region: '',
+    district: '',
+    contactPhone: '',
+    contactEmail: '',
+    aggregatorId: ''
+  });
+  const [editFpoError, setEditFpoError] = useState('');
+  const [editFpoLoading, setEditFpoLoading] = useState(false);
 
   // Add FPO Form states
   const [showAddFpoModal, setShowAddFpoModal] = useState(false);
@@ -173,7 +205,8 @@ export default function App({ roleKey: propRoleKey }) {
       status: statusLabels[lot.status] || lot.status,
       date: lot.intake_date ? new Date(lot.intake_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Unknown Date',
       dateRaw: lot.intake_date,
-      remarks: lot.remarks || ''
+      remarks: lot.remarks || '',
+      qualityRecords: lot.quality_records || []
     };
   }, []);
 
@@ -200,11 +233,11 @@ export default function App({ roleKey: propRoleKey }) {
       buyerId: dn.buyer_id,
       warehouseId: dn.lot?.warehouse_id,
       fpoId: dn.lot?.warehouse?.fpo_id,
-      commodity: `${dn.lot?.commodity?.name || 'Unknown'} (${dn.lot?.variety || ''})`,
+      commodity: dn.commodity_desc || 'Unknown',
       quantity: `${parseFloat(dn.dispatch_quantity_kg) / 1000} MT`,
       quantityKg: parseFloat(dn.dispatch_quantity_kg),
       destination: dn.destination,
-      vehicle: dn.vehicle_no,
+      vehicle: dn.vehicle_reg,
       status: statusLabels[dn.status] || dn.status,
       timeline: timeline.length > 0 ? timeline : [
         { title: 'Dispatch Note Created', sub: 'Just now', done: true }
@@ -258,7 +291,7 @@ export default function App({ roleKey: propRoleKey }) {
     setDataLoading(true);
     setDataError(null);
     try {
-      const [lotsData, dispatchesData, receiptsData, statsData, commoditiesData, warehousesData, farmersData, usersData, fposData, posData] = await Promise.all([
+      const [lotsData, dispatchesData, receiptsData, statsData, commoditiesData, warehousesData, farmersData, usersData, fposData, posData, movementsData] = await Promise.all([
         inventoryService.getLots(),
         dispatchService.getDispatches(),
         inventoryService.getReceipts(),
@@ -266,11 +299,10 @@ export default function App({ roleKey: propRoleKey }) {
         commodityService.getCommodities(),
         warehouseService.getWarehouses(),
         farmerService.getFarmers(),
-        (rawRole === 'admin' || rawRole === 'fpo_manager')
-          ? apiClient.get(`/api/users/${rawRole === 'fpo_manager' ? `?fpo_id=${currentUser?.fpo_id || ''}` : ''}`).then(r => r.data).catch(() => [])
-          : Promise.resolve([]),
+        apiClient.get('/api/users/').then(r => r.data).catch(() => []),
         fpoService.getFPOs().catch(() => []),
-        purchaseOrderService.getPurchaseOrders().catch(() => [])
+        purchaseOrderService.getPurchaseOrders().catch(() => []),
+        stockMovementService.getStockMovements().catch(() => [])
       ]);
 
       setDbCommodities(commoditiesData);
@@ -279,6 +311,7 @@ export default function App({ roleKey: propRoleKey }) {
       setDbUsers(usersData);
       setDbFpos(fposData);
       setPos(posData || []);
+      setDbMovements(movementsData || []);
 
       setIntakes(lotsData.map(mapLotToUI));
       setDispatches(dispatchesData.map(mapDispatchToUI));
@@ -529,7 +562,7 @@ export default function App({ roleKey: propRoleKey }) {
       // Simulate ERPNext integration if active
       apiSim.syncERPNextStock(newLot);
 
-      if (lotRes.status !== 'returned' && lotRes.grade !== 'rejected') {
+      if (lotRes.grade === 'grade_a' || lotRes.grade === 'grade_b' || lotRes.grade === 'grade_c') {
         const expiryDate = new Date();
         expiryDate.setMonth(expiryDate.getMonth() + 3);
         
@@ -551,11 +584,11 @@ export default function App({ roleKey: propRoleKey }) {
       await loadAllData();
     } catch (err) {
       console.error('Intake failed:', err);
-      alert('Failed to register intake on backend.');
+      toast.error('Failed to register intake on backend.');
     }
   };
 
-  const handleUpdateGrade = async (lotId, grade, gradeClass, moisture, status) => {
+  const handleUpdateGrade = async (lotId, grade, gradeClass, moisture, status, foreignMatter, protein, brokenGrains, inspector) => {
     try {
       const lot = intakes.find(l => l.id === lotId);
       if (!lot) return;
@@ -582,13 +615,16 @@ export default function App({ roleKey: propRoleKey }) {
 
       // Create Quality Control Record
       await qualityService.createQualityRecord({
+        qc_code: `QC-${lot.id}-${Math.floor(Math.random() * 900 + 100)}`,
         lot_id: lot.dbId,
         moisture_pct: parseFloat(moisture),
-        foreign_matter_pct: 0.45,
-        broken_grains_pct: 1.2,
-        grade: mappedGrade,
-        inspected_by: 'Govt Lab Officer',
-        notes: 'AGMARK certified'
+        foreign_matter_pct: parseFloat(foreignMatter || 0.0),
+        broken_grain_pct: parseFloat(brokenGrains || 0.0),
+        protein_pct: parseFloat(protein || 0.0),
+        grade_awarded: mappedGrade,
+        inspected_by: currentUser?.id || 1,
+        inspection_date: new Date().toISOString(),
+        remarks: `AGMARK certified by ${inspector || 'Govt Lab Officer'}`
       });
 
       // Update Lot
@@ -632,7 +668,7 @@ export default function App({ roleKey: propRoleKey }) {
       await loadAllData();
     } catch (err) {
       console.error('Update grade failed:', err);
-      alert('Failed to update quality record on backend.');
+      toast.error('Failed to update quality record on backend.');
     }
   };
 
@@ -704,6 +740,8 @@ export default function App({ roleKey: propRoleKey }) {
         commodity_desc: newDispatch.commodity,
         quantity_desc: newDispatch.quantity,
         destination: newDispatch.destination,
+        destination_lat: newDispatch.destinationLat || null,
+        destination_lng: newDispatch.destinationLng || null,
         vehicle_reg: newDispatch.vehicle,
         status: 'in_transit',
         dispatch_date: new Date().toISOString()
@@ -713,7 +751,7 @@ export default function App({ roleKey: propRoleKey }) {
       await loadAllData();
     } catch (err) {
       console.error('Add dispatch failed:', err);
-      alert('Failed to register dispatch on backend.');
+      toast.error('Failed to register dispatch on backend.');
     }
   };
 
@@ -743,7 +781,7 @@ export default function App({ roleKey: propRoleKey }) {
       }, 4000);
     } catch (err) {
       console.error('Apply collateral failed:', err);
-      alert('Failed to apply collateral on backend.');
+      toast.error('Failed to apply collateral on backend.');
     }
   };
 
@@ -792,7 +830,7 @@ export default function App({ roleKey: propRoleKey }) {
       await loadAllData();
     } catch (err) {
       console.error('Create PO failed:', err);
-      alert('Failed to register Purchase Order on backend.');
+      toast.error('Failed to register Purchase Order on backend.');
     }
   };
 
@@ -805,7 +843,7 @@ export default function App({ roleKey: propRoleKey }) {
       await loadAllData();
     } catch (err) {
       console.error('Pay PO failed:', err);
-      alert('Failed to simulate PO payment on backend.');
+      toast.error('Failed to simulate PO payment on backend.');
     }
   };
 
@@ -834,7 +872,7 @@ export default function App({ roleKey: propRoleKey }) {
         email: newUser.email.trim() || null,
         role_id: Number(newUser.roleId),
         role: selectedRole ? selectedRole.name : 'fpo_staff',
-        fpo_id: (selectedRole?.name === 'fpo_manager' || selectedRole?.name === 'fpo_staff') ? Number(newUser.fpoId) : null,
+        fpo_id: (selectedRole?.name === 'fpo_manager' || selectedRole?.name === 'fpo_staff' || selectedRole?.name === 'aggregator') ? Number(newUser.fpoId) : null,
         password_hash: newUser.password || '123456',
         initials: initials,
         is_active: true
@@ -866,6 +904,144 @@ export default function App({ roleKey: propRoleKey }) {
       }
     } finally {
       setAddUserLoading(false);
+    }
+  };
+
+  const handleEditUserClick = (usr) => {
+    const roleMap = {
+      'admin': '1',
+      'farmer': '2',
+      'fpo_staff': '3',
+      'fpo_manager': '4',
+      'aggregator': '5',
+      'market_partner': '6'
+    };
+    setEditUser({
+      id: usr.id,
+      fullName: usr.full_name,
+      phone: usr.phone,
+      email: usr.email || '',
+      roleId: roleMap[usr.role] || '3',
+      fpoId: usr.fpo_id?.toString() || '1',
+      password: '',
+      isActive: usr.is_active
+    });
+    setEditUserError('');
+    setShowEditUserModal(true);
+  };
+
+  const handleEditUserSubmit = async (e) => {
+    e.preventDefault();
+    setEditUserError('');
+    setEditUserLoading(true);
+
+    try {
+      const selectedRole = [
+        { id: 1, name: 'admin' },
+        { id: 2, name: 'farmer' },
+        { id: 3, name: 'fpo_staff' },
+        { id: 4, name: 'fpo_manager' },
+        { id: 5, name: 'aggregator' },
+        { id: 6, name: 'market_partner' }
+      ].find(r => r.id === Number(editUser.roleId));
+
+      const initials = editUser.fullName
+        ? editUser.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+        : 'US';
+
+      const payload = {
+        full_name: editUser.fullName,
+        phone: editUser.phone.trim(),
+        email: editUser.email.trim() || null,
+        role_id: Number(editUser.roleId),
+        role: selectedRole ? selectedRole.name : 'fpo_staff',
+        fpo_id: (selectedRole?.name === 'fpo_manager' || selectedRole?.name === 'fpo_staff' || selectedRole?.name === 'aggregator') ? Number(editUser.fpoId) : null,
+        password_hash: editUser.password.trim() || null,
+        initials: initials,
+        is_active: editUser.isActive
+      };
+
+      await apiClient.put(`/api/users/${editUser.id}`, payload);
+      toast.success("User updated successfully!");
+      await loadAllData();
+      setShowEditUserModal(false);
+    } catch (err) {
+      print(err)
+      const detail = err.response?.data?.detail;
+      const msg = Array.isArray(detail)
+        ? detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join(', ')
+        : detail || 'Failed to update user.';
+      setEditUserError(msg);
+    } finally {
+      setEditUserLoading(false);
+    }
+  };
+
+  const handleEditFpoClick = (fpo) => {
+    setEditFpo({
+      id: fpo.id,
+      name: fpo.name,
+      code: fpo.code,
+      region: fpo.region || '',
+      district: fpo.district || '',
+      contactPhone: fpo.contact_phone || '',
+      contactEmail: fpo.contact_email || '',
+      aggregatorId: fpo.aggregator_id?.toString() || ''
+    });
+    setEditFpoError('');
+    setShowEditFpoModal(true);
+  };
+
+  const handleEditFpoSubmit = async (e) => {
+    e.preventDefault();
+    setEditFpoError('');
+    setEditFpoLoading(true);
+
+    try {
+      const payload = {
+        name: editFpo.name.trim(),
+        code: editFpo.code.trim().toUpperCase(),
+        region: editFpo.region.trim() || null,
+        district: editFpo.district.trim() || null,
+        state: 'Maharashtra',
+        contact_phone: editFpo.contactPhone.trim() || null,
+        contact_email: editFpo.contactEmail.trim() || null,
+        aggregator_id: editFpo.aggregatorId ? Number(editFpo.aggregatorId) : null
+      };
+
+      await fpoService.updateFPO(editFpo.id, payload);
+      toast.success(`FPO "${editFpo.name}" updated successfully!`);
+      await loadAllData();
+      setShowEditFpoModal(false);
+    } catch (err) {
+      setEditFpoError(err.response?.data?.detail || 'Failed to update FPO. Please check parameters.');
+    } finally {
+      setEditFpoLoading(false);
+    }
+  };
+
+  const handleDeleteFpo = async (fpoId, name) => {
+    if (!window.confirm(`Are you sure you want to delete FPO "${name}"?`)) return;
+    try {
+      await fpoService.deleteFPO(fpoId);
+      toast.success(`FPO "${name}" deleted successfully.`);
+      await loadAllData();
+    } catch (err) {
+      const detail = err.response?.data?.detail || "Failed to delete FPO.";
+      toast.error(detail);
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm("Are you sure you want to delete this user?")) return;
+    try {
+      await apiClient.delete(`/api/users/${userId}`);
+      toast.success("User deleted successfully!");
+      await loadAllData();
+    } catch (err) {
+      console.error("Failed to delete user:", err);
+      const detail = err.response?.data?.detail || "Failed to delete user.";
+      toast.error(detail);
     }
   };
 
@@ -1056,16 +1232,27 @@ export default function App({ roleKey: propRoleKey }) {
           />
         )}
 
-        {activeTab === 'receipts' && (
-          <Receipts
-            receipts={receipts}
-            intakes={intakes}
-            onApplyCollateral={handleApplyCollateral}
-            searchQuery={searchQuery}
-            language={language}
-            role={role}
-          />
-        )}
+        {activeTab === 'receipts' && (() => {
+          const dbFarmer = dbFarmers.find(f => {
+            if (f.user_id && currentUser?.id && f.user_id === currentUser.id) {
+              return true;
+            }
+            const normF = (f.phone || '').replace(/\D/g, '');
+            const normU = (currentUser?.phone || '').replace(/\D/g, '');
+            return normF === normU && normF !== '';
+          });
+          return (
+            <Receipts
+              receipts={receipts}
+              intakes={intakes}
+              onApplyCollateral={handleApplyCollateral}
+              searchQuery={searchQuery}
+              language={language}
+              role={role}
+              currentFarmerCode={dbFarmer?.farmer_code || ''}
+            />
+          );
+        })()}
 
         {(activeTab === 'market' || activeTab === 'purchase-orders') && (
           <Market
@@ -1087,6 +1274,7 @@ export default function App({ roleKey: propRoleKey }) {
         {activeTab === 'transfers' && (
           <Transfers
             intakes={intakes}
+            warehouses={dbWarehouses}
             language={language}
             role={role}
             onAddActivity={async () => {
@@ -1114,6 +1302,12 @@ export default function App({ roleKey: propRoleKey }) {
             intakes={intakes}
             receipts={receipts}
             farmersList={mappedFarmers}
+            dbFarmers={dbFarmers}
+            dbFpos={dbFpos}
+            dbWarehouses={dbWarehouses}
+            dbMovements={dbMovements}
+            dbUsers={dbUsers}
+            currentUser={currentUser}
             onApplyCollateral={handleApplyCollateral}
             language={language}
             role={role}
@@ -1140,7 +1334,7 @@ export default function App({ roleKey: propRoleKey }) {
                 }
               } catch (err) {
                 console.error('Amend receipt failed:', err);
-                alert('Failed to amend receipt on backend.');
+                toast.error('Failed to amend receipt on backend.');
               }
             }}
             onAddActivity={async () => {
@@ -1169,6 +1363,7 @@ export default function App({ roleKey: propRoleKey }) {
             dbFarmers={dbFarmers}
             dbFpos={dbFpos}
             onRefreshData={loadAllData}
+            role={rawRole}
           />
         )}
 
@@ -1222,30 +1417,226 @@ export default function App({ roleKey: propRoleKey }) {
                       <th>Phone</th>
                       <th>Email</th>
                       <th>Role</th>
+                      <th>Linked FPO / Aggregator</th>
                       <th>Status</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {dbUsers.length === 0 ? (
                       <tr>
-                        <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text3)' }}>Loading system users...</td>
+                        <td colSpan="8" style={{ textAlign: 'center', color: 'var(--text3)' }}>Loading system users...</td>
                       </tr>
                     ) : (
-                      dbUsers.map(usr => (
-                        <tr key={usr.id}>
-                          <td><strong>USR-0{usr.id}</strong></td>
-                          <td>{usr.full_name}</td>
-                          <td>{usr.phone}</td>
-                          <td>{usr.email || 'N/A'}</td>
-                          <td><span className="badge badge-teal">{usr.role}</span></td>
-                          <td><span className={`badge ${usr.is_active ? 'badge-green' : 'badge-red'}`}>{usr.is_active ? 'Active' : 'Deactivated'}</span></td>
-                        </tr>
-                      ))
+                      dbUsers.map(usr => {
+                        const isSelf = currentUser?.id === usr.id;
+                        return (
+                          <tr key={usr.id}>
+                            <td><strong>USR-0{usr.id}</strong></td>
+                            <td>{usr.full_name}</td>
+                            <td>{usr.phone}</td>
+                            <td>{usr.email || 'N/A'}</td>
+                            <td><span className="badge badge-teal">{usr.role}</span></td>
+                            <td>
+                              {usr.fpo_name ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--text1)' }}>
+                                  🏢 {usr.fpo_name}
+                                </span>
+                              ) : usr.role === 'admin' ? (
+                                <span style={{ color: 'var(--text3)', fontSize: '12px', fontStyle: 'italic' }}>⚙️ Global Admin</span>
+                              ) : (
+                                <span style={{ color: 'var(--text3)' }}>—</span>
+                              )}
+                            </td>
+                            <td><span className={`badge ${usr.is_active ? 'badge-green' : 'badge-red'}`}>{usr.is_active ? 'Active' : 'Deactivated'}</span></td>
+                            <td>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button
+                                  className="btn btn-outline"
+                                  style={{ padding: '4px 10px', fontSize: '12px', minWidth: 'auto', color: 'var(--amber)', borderColor: 'rgba(245, 158, 11, 0.3)' }}
+                                  onClick={() => handleEditUserClick(usr)}
+                                >
+                                  ✏️ Edit
+                                </button>
+                                <button
+                                  className="btn btn-outline"
+                                  style={{
+                                    padding: '4px 10px',
+                                    fontSize: '12px',
+                                    minWidth: 'auto',
+                                    color: isSelf ? 'var(--text3)' : '#ef4444',
+                                    borderColor: isSelf ? 'var(--border2)' : 'rgba(239, 68, 68, 0.3)',
+                                    cursor: isSelf ? 'not-allowed' : 'pointer',
+                                    opacity: isSelf ? 0.5 : 1,
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (!isSelf) {
+                                      e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+                                      e.currentTarget.style.borderColor = '#ef4444';
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!isSelf) {
+                                      e.currentTarget.style.background = 'transparent';
+                                      e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                                    }
+                                  }}
+                                  onClick={() => handleDeleteUser(usr.id)}
+                                  disabled={isSelf}
+                                  title={isSelf ? "Cannot delete yourself" : "Delete user"}
+                                >
+                                  🗑️ Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
               </div>
             </div>
+
+            {/* Edit User Modal Overlay */}
+            {showEditUserModal && (
+              <div className="modal-overlay" onClick={() => setShowEditUserModal(false)}>
+                <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+                  <div className="modal-header">
+                    <div className="modal-title">Edit System User</div>
+                    <button className="modal-close" onClick={() => setShowEditUserModal(false)}>×</button>
+                  </div>
+                  
+                  <form onSubmit={handleEditUserSubmit}>
+                    <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px 24px' }}>
+                      {editUserError && (
+                        <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', borderRadius: '6px', padding: '10px', fontSize: '13px', textAlign: 'center' }}>
+                          ❌ {editUserError}
+                        </div>
+                      )}
+
+                      <div className="form-group">
+                        <label className="form-label">Full Name</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          value={editUser.fullName}
+                          onChange={e => setEditUser({ ...editUser, fullName: e.target.value })}
+                          required 
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Phone Number (with Country Code)</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          value={editUser.phone}
+                          onChange={e => setEditUser({ ...editUser, phone: e.target.value })}
+                          required 
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Email Address (Optional)</label>
+                        <input 
+                          type="email" 
+                          className="form-input" 
+                          value={editUser.email}
+                          onChange={e => setEditUser({ ...editUser, email: e.target.value })}
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div className="form-group">
+                          <label className="form-label">System Role</label>
+                          <select 
+                            className="form-select"
+                            value={editUser.roleId}
+                            onChange={e => {
+                              const nextRoleId = e.target.value;
+                              setEditUser({ 
+                                ...editUser, 
+                                roleId: nextRoleId,
+                                fpoId: (rawRole === 'fpo_manager') ? currentUser?.fpo_id?.toString() || '1' : editUser.fpoId
+                              });
+                            }}
+                            style={{ background: '#fff' }}
+                          >
+                            {rawRole === 'admin' ? (
+                              <>
+                                <option value="1">System Admin</option>
+                                <option value="2">Farmer</option>
+                                <option value="3">FPO Staff</option>
+                                <option value="4">FPO Manager</option>
+                                <option value="5">Aggregator</option>
+                                <option value="6">Market Partner</option>
+                              </>
+                            ) : (
+                              <option value="3">FPO Staff</option>
+                            )}
+                          </select>
+                        </div>
+
+                        {(editUser.roleId === '3' || editUser.roleId === '4' || editUser.roleId === '5') && (
+                          <div className="form-group">
+                            <label className="form-label">Linked FPO / Aggregator Hub</label>
+                            {rawRole === 'fpo_manager' ? (
+                              <div style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '13.5px', fontWeight: '500' }}>
+                                {dbFpos.find(f => f.id === currentUser?.fpo_id)?.name || 'My FPO'}
+                              </div>
+                            ) : (
+                              <select 
+                                className="form-select"
+                                value={editUser.fpoId}
+                                onChange={e => setEditUser({ ...editUser, fpoId: e.target.value })}
+                                style={{ background: '#fff' }}
+                              >
+                                {dbFpos.map(fpo => (
+                                  <option key={fpo.id} value={fpo.id}>{fpo.name}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">New Password / PIN (Leave blank to keep current)</label>
+                        <input 
+                          type="password" 
+                          className="form-input" 
+                          placeholder="Enter new password/PIN"
+                          value={editUser.password}
+                          onChange={e => setEditUser({ ...editUser, password: e.target.value })}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13.5px' }}>
+                          <input
+                            type="checkbox"
+                            checked={editUser.isActive}
+                            onChange={e => setEditUser({ ...editUser, isActive: e.target.checked })}
+                            style={{ width: '16px', height: '16px' }}
+                          />
+                          <span>Active Account</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="form-footer" style={{ borderTop: '1px solid rgba(0,0,0,0.08)', padding: '16px 24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                      <button type="button" className="btn btn-outline" onClick={() => setShowEditUserModal(false)} disabled={editUserLoading}>
+                        Cancel
+                      </button>
+                      <button type="submit" className="btn btn-primary" disabled={editUserLoading} style={{ background: 'var(--green)', borderColor: 'var(--green)' }}>
+                        {editUserLoading ? 'Saving...' : 'Save Changes'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
 
             {/* Create User Modal Overlay */}
             {showAddUserModal && (
@@ -1330,9 +1721,9 @@ export default function App({ roleKey: propRoleKey }) {
                           </select>
                         </div>
 
-                        {(newUser.roleId === '3' || newUser.roleId === '4') && (
+                        {(newUser.roleId === '3' || newUser.roleId === '4' || newUser.roleId === '5') && (
                           <div className="form-group">
-                            <label className="form-label">Linked FPO Hub</label>
+                            <label className="form-label">Linked FPO / Aggregator Hub</label>
                             {rawRole === 'fpo_manager' ? (
                               <div style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '13.5px', fontWeight: '500' }}>
                                 {dbFpos.find(f => f.id === currentUser?.fpo_id)?.name || 'My FPO'}
@@ -1399,6 +1790,7 @@ export default function App({ roleKey: propRoleKey }) {
                       <th>Contact Phone</th>
                       <th>Contact Email</th>
                       <th>Parent Aggregator</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1418,6 +1810,24 @@ export default function App({ roleKey: propRoleKey }) {
                             <td>{fpo.contact_phone || 'N/A'}</td>
                             <td>{fpo.contact_email || 'N/A'}</td>
                             <td>{parentAgg ? <span className="badge badge-blue">{parentAgg.name}</span> : 'None'}</td>
+                            <td>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button
+                                  className="btn btn-outline"
+                                  style={{ padding: '4px 10px', fontSize: '12px', minWidth: 'auto', color: 'var(--amber)', borderColor: 'rgba(245, 158, 11, 0.3)' }}
+                                  onClick={() => handleEditFpoClick(fpo)}
+                                >
+                                  ✏️ Edit
+                                </button>
+                                <button
+                                  className="btn btn-outline"
+                                  style={{ padding: '4px 10px', fontSize: '12px', minWidth: 'auto', color: 'var(--red)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                                  onClick={() => handleDeleteFpo(fpo.id, fpo.name)}
+                                >
+                                  🗑️ Delete
+                                </button>
+                              </div>
+                            </td>
                           </tr>
                         );
                       })
@@ -1426,6 +1836,115 @@ export default function App({ roleKey: propRoleKey }) {
                 </table>
               </div>
             </div>
+
+            {/* Edit FPO Modal */}
+            {showEditFpoModal && (
+              <div className="modal-overlay" onClick={() => setShowEditFpoModal(false)}>
+                <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+                  <div className="modal-header">
+                    <div className="modal-title">Edit FPO Organization</div>
+                    <button className="modal-close" onClick={() => setShowEditFpoModal(false)}>×</button>
+                  </div>
+                  
+                  <form onSubmit={handleEditFpoSubmit}>
+                    <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px 24px' }}>
+                      {editFpoError && (
+                        <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', borderRadius: '6px', padding: '10px', fontSize: '13px', textAlign: 'center' }}>
+                          ❌ {editFpoError}
+                        </div>
+                      )}
+
+                      <div className="form-group">
+                        <label className="form-label">FPO Name *</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          value={editFpo.name}
+                          onChange={e => setEditFpo({ ...editFpo, name: e.target.value })}
+                          required 
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">FPO Code (Unique Identifier) *</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          value={editFpo.code}
+                          onChange={e => setEditFpo({ ...editFpo, code: e.target.value })}
+                          required 
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div className="form-group">
+                          <label className="form-label">Region / Sub-district</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            value={editFpo.region}
+                            onChange={e => setEditFpo({ ...editFpo, region: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">District Hub</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            value={editFpo.district}
+                            onChange={e => setEditFpo({ ...editFpo, district: e.target.value })}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Office Contact Phone</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          value={editFpo.contactPhone}
+                          onChange={e => setEditFpo({ ...editFpo, contactPhone: e.target.value })}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Office Contact Email</label>
+                        <input 
+                          type="email" 
+                          className="form-input" 
+                          value={editFpo.contactEmail}
+                          onChange={e => setEditFpo({ ...editFpo, contactEmail: e.target.value })}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Parent Aggregator Cluster Point (Optional)</label>
+                        <select 
+                          className="form-select"
+                          value={editFpo.aggregatorId}
+                          onChange={e => setEditFpo({ ...editFpo, aggregatorId: e.target.value })}
+                          style={{ background: '#fff' }}
+                        >
+                          <option value="">-- No Aggregator Parent --</option>
+                          {dbFpos.map(agg => (
+                            <option key={agg.id} value={agg.id}>{agg.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="form-footer" style={{ borderTop: '1px solid rgba(0,0,0,0.08)', padding: '16px 24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                      <button type="button" className="btn btn-outline" onClick={() => setShowEditFpoModal(false)} disabled={editFpoLoading}>
+                        Cancel
+                      </button>
+                      <button type="submit" className="btn btn-primary" disabled={editFpoLoading} style={{ background: 'var(--green)', borderColor: 'var(--green)' }}>
+                        {editFpoLoading ? 'Saving...' : 'Save Changes'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
 
             {/* Register FPO Modal */}
             {showAddFpoModal && (
